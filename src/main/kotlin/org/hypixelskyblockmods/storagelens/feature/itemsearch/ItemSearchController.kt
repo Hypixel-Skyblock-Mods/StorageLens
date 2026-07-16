@@ -96,7 +96,7 @@ object ItemSearchController {
             return true
         }
         if (screen !is AbstractContainerScreen<*> || !SkyblockApiItemSearchAdapter.isOnSkyBlock()) return false
-        val hovered = (screen as ContainerScreenAccessor).skyhudHoveredSlot()?.item
+        val hovered = (screen as ContainerScreenAccessor).storageLensHoveredSlot()?.item
         val query = hovered?.takeUnless { it.isEmpty }?.let(SkyblockApiItemSearchAdapter::cleanName).orEmpty()
         Minecraft.getInstance().player?.closeContainer()
         Minecraft.getInstance().execute { open(query) }

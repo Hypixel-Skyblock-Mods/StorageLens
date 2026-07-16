@@ -8,5 +8,5 @@ import org.spongepowered.asm.mixin.gen.Accessor
 @Mixin(AbstractContainerScreen::class)
 interface ContainerScreenAccessor {
     @Accessor("hoveredSlot")
-    fun skyhudHoveredSlot(): Slot?
+    fun storageLensHoveredSlot(): Slot?
 }

@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo
 @Mixin(GameRenderer::class)
 abstract class GuiBlurMixin {
     @Inject(method = ["processBlurEffect"], at = [At("HEAD")])
-    private fun skyhudCaptureBackdrop(callback: CallbackInfo) {
+    private fun storageLensCaptureBackdrop(callback: CallbackInfo) {
         SkyHudBackdrop.captureFrame()
     }
 }
