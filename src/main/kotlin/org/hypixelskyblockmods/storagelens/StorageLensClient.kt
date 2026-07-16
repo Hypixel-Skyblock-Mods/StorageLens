@@ -13,17 +13,16 @@ import net.minecraft.gizmos.GizmoStyle
 import net.minecraft.gizmos.Gizmos
 import net.minecraft.world.phys.AABB
 import org.hypixelskyblockmods.storagelens.config.SkyHudConfigManager
-import org.hypixelskyblockmods.storagelens.feature.equipment.EquipmentDetector
 import org.hypixelskyblockmods.storagelens.feature.equipment.EquipmentRepository
+import org.hypixelskyblockmods.storagelens.feature.itemsearch.ContainerMenuObservation
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.IslandChestRepository
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.ItemSearchController
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.ItemSearchDataManager
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.ItemSearchKeyMapping
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.PlayerInventorySearchRepository
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.SackOfSacksRepository
-import org.hypixelskyblockmods.storagelens.feature.loadouts.LoadoutDetector
 import org.hypixelskyblockmods.storagelens.feature.loadouts.LoadoutRepository
-import org.hypixelskyblockmods.storagelens.feature.wardrobe.WardrobeDetector
+import org.hypixelskyblockmods.storagelens.feature.storage.ObservedStorageRepository
 import org.hypixelskyblockmods.storagelens.feature.wardrobe.WardrobeRepository
 import org.hypixelskyblockmods.storagelens.gui.SkyHudBackdrop
 import org.hypixelskyblockmods.storagelens.gui.SkyHudTheme
@@ -40,11 +39,11 @@ object StorageLensClient : ClientModInitializer {
         registerCommands()
         ScreenEvents.AFTER_INIT.register(ScreenEvents.AfterInit { _, screen, _, _ ->
             IslandChestRepository.onScreenOpened(screen)
-            LoadoutDetector.detect(screen)?.let { LoadoutRepository.remember(it.page, it.menu) }
-            WardrobeDetector.detect(screen)?.let { WardrobeRepository.sets.remember(it.page, it.menu) }
-            EquipmentDetector.detect(screen)?.let { EquipmentRepository.sets.remember(it.page, it.menu) }
+            ContainerMenuObservation.observe(screen)
         })
+        ClientTickEvents.END_CLIENT_TICK.register { ContainerMenuObservation.onClientTick() }
         ClientTickEvents.END_CLIENT_TICK.register { PlayerInventorySearchRepository.onClientTick() }
+        ClientTickEvents.END_CLIENT_TICK.register { ObservedStorageRepository.onClientTick() }
         ClientTickEvents.END_CLIENT_TICK.register { IslandChestRepository.onClientTick() }
         ClientTickEvents.END_CLIENT_TICK.register { SackOfSacksRepository.onClientTick() }
         ClientTickEvents.END_CLIENT_TICK.register { LoadoutRepository.onClientTick() }
@@ -67,6 +66,7 @@ object StorageLensClient : ClientModInitializer {
         ClientLifecycleEvents.CLIENT_STOPPING.register {
             SkyHudConfigManager.save()
             PlayerInventorySearchRepository.flush()
+            ObservedStorageRepository.flush()
             IslandChestRepository.flush()
             SackOfSacksRepository.flush()
             LoadoutRepository.flush()

@@ -53,6 +53,33 @@ class ItemSearchIndexTest {
     }
 
     @Test
+    fun `observed storage slot replaces changed api fingerprint`() {
+        val location = ItemLocation.Storage(org.hypixelskyblockmods.storagelens.feature.storage.StoragePageKey.enderChest(2), 4)
+        val api = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint("old_item"),
+            location,
+            origin = ItemDataOrigin.SKYBLOCK_API_PROFILE,
+            source = ItemSourceId.STORAGE,
+        )
+        val observed = item(
+            ItemStack.EMPTY,
+            32,
+            fingerprint("new_item"),
+            location,
+            origin = ItemDataOrigin.LOCAL_OBSERVATION,
+            source = ItemSourceId.STORAGE,
+        )
+
+        val entries = ItemSearchIndex.buildForTests(listOf(api, observed)).all()
+
+        assertEquals(1, entries.size)
+        assertEquals("new_item", entries.single().name)
+        assertEquals(32, entries.single().totalAmount)
+    }
+
+    @Test
     fun `query uses whitespace and enabled fields`() {
         val searchable = item(
             ItemStack.EMPTY,
@@ -162,10 +189,11 @@ class ItemSearchIndexTest {
         skyblockId: String? = fingerprint.skyblockId,
         value: Long? = null,
         updated: Long? = 1_000L,
+        source: ItemSourceId = ItemSourceId.INVENTORY,
     ) = SearchableItem(
         stack = stack,
         amount = amount,
-        source = ItemSourceId.INVENTORY,
+        source = source,
         location = location,
         origin = origin,
         updatedAtEpochMillis = updated,

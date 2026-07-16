@@ -31,6 +31,11 @@ StorageLens stores local observations under
 SkyBlock profile name. When the profile is unknown, only live data is shown and
 nothing is persisted.
 
+Validated Ender Chest, backpack, Loadout, Wardrobe, and Equipment menus are
+observed from their server-backed containers before another mod can replace the
+visible screen. This keeps previews current when using SkyHUD, Firmament, or a
+normal Minecraft container screen.
+
 Island chest tracking starts only after the player legitimately right-clicks a
 normal or trapped chest on their own private island. StorageLens never scans
 chunks or reads unopened block entities. If either half of a tracked double
@@ -75,8 +80,8 @@ Build and test both supported targets:
 Production JARs are written to:
 
 ```text
-versions/mc26_1_2/build/libs/StorageLens-0.1.1+mc26.1.2.jar
-versions/mc26_2/build/libs/StorageLens-0.1.1+mc26.2.jar
+versions/mc26_1_2/build/libs/StorageLens-0.1.2+mc26.1.2.jar
+versions/mc26_2/build/libs/StorageLens-0.1.2+mc26.2.jar
 ```
 
 ## Releases

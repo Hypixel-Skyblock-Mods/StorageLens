@@ -5,12 +5,14 @@ import net.minecraft.world.entity.player.Inventory
 import net.minecraft.world.inventory.ChestMenu
 import org.hypixelskyblockmods.storagelens.feature.equipment.EquipmentRepository
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.IslandChestRepository
+import org.hypixelskyblockmods.storagelens.feature.itemsearch.ContainerMenuObservation
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.ItemSearchController
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.ItemSourceRegistry
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.PlayerInventorySearchRepository
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.SackOfSacksRepository
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.SkyHudRepositoryItemSources
 import org.hypixelskyblockmods.storagelens.feature.loadouts.LoadoutRepository
+import org.hypixelskyblockmods.storagelens.feature.storage.ObservedStorageRepository
 import org.hypixelskyblockmods.storagelens.feature.wardrobe.WardrobeRepository
 import tech.thatgravyboat.skyblockapi.api.SkyBlockAPI
 import tech.thatgravyboat.skyblockapi.api.events.level.BlockChangeEvent
@@ -49,19 +51,30 @@ object SkyblockApiIntegration {
         }
         SkyBlockAPI.eventBus.register<ContainerInitializedEvent> { event ->
             val menu = event.screen.menu as? ChestMenu ?: return@register
+            val title = event.title
             val items = event.containerItems.map(net.minecraft.world.item.ItemStack::copy)
-            Minecraft.getInstance().execute { IslandChestRepository.initializeContainer(menu.containerId, items) }
+            Minecraft.getInstance().execute {
+                ContainerMenuObservation.observe(title, menu)
+                IslandChestRepository.initializeContainer(menu.containerId, items)
+            }
         }
         SkyBlockAPI.eventBus.register<InventoryChangeEvent> { event ->
             val menu = event.screen.menu as? ChestMenu ?: return@register
-            if (event.isInPlayerInventory) return@register
-            val items = event.inventory
+            val title = event.title
+            val items = if (event.isInPlayerInventory) null else event.inventory
                 .filterNot { it.container is Inventory }
                 .map { it.item.copy() }
-            Minecraft.getInstance().execute { IslandChestRepository.onContainerChanged(menu.containerId, items) }
+            Minecraft.getInstance().execute {
+                ContainerMenuObservation.observe(title, menu)
+                items?.let { IslandChestRepository.onContainerChanged(menu.containerId, it) }
+            }
         }
         SkyBlockAPI.eventBus.register<ContainerCloseEvent> {
-            Minecraft.getInstance().execute(IslandChestRepository::onContainerClosed)
+            Minecraft.getInstance().execute {
+                ContainerMenuObservation.clearBacking()
+                ObservedStorageRepository.onContainerClosed()
+                IslandChestRepository.onContainerClosed()
+            }
         }
         SkyBlockAPI.eventBus.register<BlockChangeEvent> { event ->
             val remainsChest = SkyblockApiItemSearchAdapter.isChest(event.state)
@@ -73,7 +86,9 @@ object SkyblockApiIntegration {
         SkyBlockAPI.eventBus.register<ProfileChangeEvent> {
             Minecraft.getInstance().execute {
                 ItemSearchController.onProfileChanged()
+                ContainerMenuObservation.clearBacking()
                 PlayerInventorySearchRepository.resetSession()
+                ObservedStorageRepository.resetSession()
                 SackOfSacksRepository.resetSession()
                 IslandChestRepository.resetSession()
                 LoadoutRepository.resetSession()

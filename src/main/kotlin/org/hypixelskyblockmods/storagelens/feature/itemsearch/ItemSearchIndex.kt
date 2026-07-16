@@ -123,7 +123,9 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
 
         private fun build(items: List<SearchableItem>, allowEmptyStacks: Boolean): ItemSearchIndex {
             val buckets = linkedMapOf<ItemFingerprint, MutableList<MutableEntry>>()
-            items.filterNot { (!allowEmptyStacks && it.stack.isEmpty) || it.amount <= 0 }.forEach { item ->
+            resolveObservedLocations(items)
+                .filterNot { (!allowEmptyStacks && it.stack.isEmpty) || it.amount <= 0 }
+                .forEach { item ->
                 val bucket = buckets.getOrPut(item.fingerprint) { mutableListOf() }
                 val aggregate = bucket.firstOrNull { ItemStack.matches(it.displayStack.copyWithCount(1), item.stack.copyWithCount(1)) }
                     ?: MutableEntry(item).also(bucket::add)
@@ -172,6 +174,32 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
             locations.map(SearchableItem::defensiveCopy),
         )
     }
+}
+
+private val observedLocationSources = setOf(
+    ItemSourceId.STORAGE,
+    ItemSourceId.WARDROBE,
+    ItemSourceId.EQUIPMENT_WARDROBE,
+)
+
+private fun resolveObservedLocations(items: List<SearchableItem>): List<SearchableItem> {
+    val resolved = mutableListOf<SearchableItem>()
+    val positions = mutableMapOf<Pair<ItemSourceId, String>, Int>()
+    items.forEach { item ->
+        if (item.source !in observedLocationSources) {
+            resolved += item
+            return@forEach
+        }
+        val key = item.source to item.location.identity
+        val index = positions[key]
+        if (index == null) {
+            positions[key] = resolved.size
+            resolved += item
+        } else if (item.origin.priority() > resolved[index].origin.priority()) {
+            resolved[index] = item
+        }
+    }
+    return resolved
 }
 
 private fun ItemSearchEntry.matches(term: String, options: ItemSearchOptions): Boolean {

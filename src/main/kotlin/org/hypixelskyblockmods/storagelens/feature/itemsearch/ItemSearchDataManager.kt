@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
 import org.hypixelskyblockmods.storagelens.feature.equipment.EquipmentRepository
 import org.hypixelskyblockmods.storagelens.feature.loadouts.LoadoutRepository
+import org.hypixelskyblockmods.storagelens.feature.storage.ObservedStorageRepository
 import org.hypixelskyblockmods.storagelens.feature.wardrobe.WardrobeRepository
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyblockApiStorageAdapter
 
@@ -27,6 +28,7 @@ object ItemSearchDataManager {
         PlayerInventorySearchRepository.clearCurrentProfile()
         SackOfSacksRepository.clearCurrentProfile()
         IslandChestRepository.clearCurrentProfile()
+        ObservedStorageRepository.clearCurrentProfile()
         LoadoutRepository.clearCurrentProfile()
         WardrobeRepository.sets.clearCurrentProfile()
         EquipmentRepository.sets.clearCurrentProfile()

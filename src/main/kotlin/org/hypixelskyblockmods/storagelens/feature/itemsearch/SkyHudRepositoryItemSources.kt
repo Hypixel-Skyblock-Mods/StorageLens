@@ -2,14 +2,30 @@ package org.hypixelskyblockmods.storagelens.feature.itemsearch
 
 import org.hypixelskyblockmods.storagelens.feature.equipment.EquipmentRepository
 import org.hypixelskyblockmods.storagelens.feature.loadouts.LoadoutRepository
+import org.hypixelskyblockmods.storagelens.feature.storage.ObservedStorageRepository
 import org.hypixelskyblockmods.storagelens.feature.wardrobe.WardrobeRepository
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyblockApiItemSearchAdapter
 
 object SkyHudRepositoryItemSources {
     fun initialize() {
+        ItemSourceRegistry.register(ItemSourceId.STORAGE, ::storage)
         ItemSourceRegistry.register(ItemSourceId.LOADOUTS, ::loadouts)
         ItemSourceRegistry.register(ItemSourceId.WARDROBE, ::wardrobe)
         ItemSourceRegistry.register(ItemSourceId.EQUIPMENT_WARDROBE, ::equipment)
+    }
+
+    private fun storage(): List<SearchableItem> = ObservedStorageRepository.snapshot().flatMap { page ->
+        page.items.mapIndexedNotNull { index, stack ->
+            SkyblockApiItemSearchAdapter.searchable(
+                stack,
+                stack.count.toLong(),
+                ItemSourceId.STORAGE,
+                ItemLocation.Storage(page.key, index),
+                ItemNavigationAction.Storage(page.key, index),
+                page.origin,
+                page.updatedAtEpochMillis,
+            )
+        }
     }
 
     private fun loadouts(): List<SearchableItem> = LoadoutRepository.snapshot().flatMap { loadout ->

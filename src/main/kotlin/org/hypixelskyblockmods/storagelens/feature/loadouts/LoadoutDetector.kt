@@ -16,7 +16,11 @@ object LoadoutDetector {
     fun detect(screen: Screen): LoadoutTarget? {
         val containerScreen = screen as? AbstractContainerScreen<*> ?: return null
         val menu = containerScreen.menu as? ChestMenu ?: return null
-        val match = titlePattern.matchEntire(screen.title.string) ?: return null
+        return detect(screen.title.string, menu)
+    }
+
+    fun detect(title: String, menu: ChestMenu): LoadoutTarget? {
+        val match = titlePattern.matchEntire(title) ?: return null
         val page = match.groupValues[1].toIntOrNull() ?: return null
         val totalPages = match.groupValues[2].toIntOrNull() ?: return null
 

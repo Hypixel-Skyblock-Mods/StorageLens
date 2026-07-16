@@ -264,7 +264,11 @@ object SetCollectionDetection {
     fun detect(screen: Screen, titlePatterns: List<Regex>): SetCollectionTarget? {
         val containerScreen = screen as? AbstractContainerScreen<*> ?: return null
         val menu = containerScreen.menu as? ChestMenu ?: return null
-        val match = titlePatterns.firstNotNullOfOrNull { it.matchEntire(screen.title.string) } ?: return null
+        return detect(screen.title.string, menu, titlePatterns)
+    }
+
+    fun detect(title: String, menu: ChestMenu, titlePatterns: List<Regex>): SetCollectionTarget? {
+        val match = titlePatterns.firstNotNullOfOrNull { it.matchEntire(title) } ?: return null
         val page = match.groupValues[1].toIntOrNull() ?: return null
         val totalPages = match.groupValues[2].toIntOrNull() ?: return null
 
