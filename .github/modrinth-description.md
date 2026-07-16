@@ -3,7 +3,7 @@
 StorageLens gives Hypixel SkyBlock players one profile-aware place to find
 items across live and cached inventories.
 
-![StorageLens Item Search](https://cdn.modrinth.com/data/YfhLlJko/images/8d13308d510c92869fc78cf377f7835c79b48d78.png)
+![StorageLens Item Search](https://cdn.modrinth.com/data/6Z6RRV9P/images/8d13308d510c92869fc78cf377f7835c79b48d78_350.webp)
 
 ## Search every known location
 
