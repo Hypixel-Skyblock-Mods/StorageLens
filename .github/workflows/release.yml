@@ -1,0 +1,140 @@
+name: Push to Modrinth
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Push to Modrinth
+    runs-on: [self-hosted, Linux, X64, wicked-game-01, storagelens]
+    environment: release
+    env:
+      MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      MODRINTH_CHANGELOG: "Release notes: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+      RELEASE_MANIFEST: build/release/manifest.json
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate release manifest
+        run: ./gradlew releaseManifest --no-daemon
+
+      - name: Validate release tag and publishing configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          expected_tag="$(jq --raw-output '.tag' "$RELEASE_MANIFEST")"
+          version="$(jq --raw-output '.modVersion' "$RELEASE_MANIFEST")"
+          target_count="$(jq '.targets | length' "$RELEASE_MANIFEST")"
+
+          if [[ "$target_count" -eq 0 ]]; then
+            echo "::error::The release manifest does not contain any Minecraft targets."
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} must match the configured version tag ${expected_tag}."
+            exit 1
+          fi
+
+          if [[ -z "$MODRINTH_PROJECT_ID" ]]; then
+            echo "::error::Environment variable MODRINTH_PROJECT_ID is not configured."
+            exit 1
+          fi
+
+          if [[ -z "$MODRINTH_TOKEN" ]]; then
+            echo "::error::Environment secret MODRINTH_TOKEN is not configured."
+            exit 1
+          fi
+
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Check existing Modrinth versions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          versions_file="$RUNNER_TEMP/modrinth-versions.json"
+          http_status="$(curl --silent --show-error --write-out '%{http_code}' \
+            --header "Authorization: $MODRINTH_TOKEN" \
+            --header "User-Agent: Hypixel-Skyblock-Mods/StorageLens GitHub Actions" \
+            "https://api.modrinth.com/v2/project/$MODRINTH_PROJECT_ID/version" \
+            --output "$versions_file")"
+
+          case "$http_status" in
+            200)
+              ;;
+            404)
+              echo "The project version list is not visible yet; treating this as its first publish."
+              echo '[]' > "$versions_file"
+              ;;
+            *)
+              echo "::error::Modrinth version lookup failed with HTTP $http_status."
+              exit 1
+              ;;
+          esac
+
+          echo "MODRINTH_VERSIONS_FILE=$versions_file" >> "$GITHUB_ENV"
+
+      - name: Build all Fabric targets
+        run: ./gradlew build --no-daemon
+
+      - name: Publish missing Modrinth versions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS=$'\t' read -r task artifact_version minecraft; do
+            if jq --exit-status --arg version "$artifact_version" \
+              'any(.[]; .version_number == $version)' "$MODRINTH_VERSIONS_FILE" > /dev/null; then
+              echo "Skipping existing Modrinth version $artifact_version."
+            else
+              echo "Publishing $artifact_version for Minecraft $minecraft."
+              ./gradlew "$task" --no-daemon
+            fi
+          done < <(
+            jq --raw-output \
+              '.targets[] | [.modrinthTask, .artifactVersion, .minecraft] | @tsv' \
+              "$RELEASE_MANIFEST"
+          )
+
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t jars < <(jq --raw-output '.targets[].jar' "$RELEASE_MANIFEST")
+
+          if [[ "${#jars[@]}" -eq 0 ]]; then
+            echo "::error::The release manifest did not provide any JARs."
+            exit 1
+          fi
+
+          for jar in "${jars[@]}"; do
+            test -f "$jar"
+          done
+
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${jars[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${jars[@]}" \
+              --verify-tag \
+              --generate-notes \
+              --title "StorageLens ${VERSION}"
+          fi

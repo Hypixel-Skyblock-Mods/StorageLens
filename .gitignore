@@ -1,0 +1,14 @@
+.gradle/
+.kotlin/
+.idea/
+.vscode/
+build/
+versions/*/build/
+run/
+out/
+*.iml
+*.log
+*.hprof
+hs_err_pid*.log
+.DS_Store
+Thumbs.db
