@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "storagelens",
+  "version": "${version}",
+  "name": "StorageLens",
+  "description": "Profile-aware item search and safe location highlighting for Hypixel SkyBlock.",
+  "authors": [
+    "Hypixel-Skyblock-Mods"
+  ],
+  "contact": {
+    "sources": "https://github.com/Hypixel-Skyblock-Mods/StorageLens"
+  },
+  "license": "All-Rights-Reserved",
+  "icon": "assets/storagelens/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      {
+        "adapter": "kotlin",
+        "value": "org.hypixelskyblockmods.storagelens.StorageLensClient"
+      }
+    ],
+    "modmenu": [
+      {
+        "adapter": "kotlin",
+        "value": "org.hypixelskyblockmods.storagelens.compat.modmenu.SkyHudModMenu"
+      }
+    ]
+  },
+  "mixins": [
+    "storagelens.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "fabric-language-kotlin": ">=1.13.12+kotlin.2.4.0",
+    "fabric-api": "*",
+    "skyblock-api": ">=4.2.10",
+    "minecraft": "${minecraft_version}"
+  }
+}

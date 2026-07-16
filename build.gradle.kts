@@ -6,10 +6,11 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
-import org.gradle.jvm.tasks.Jar
-import org.gradle.language.jvm.tasks.ProcessResources
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.gradle.jvm.tasks.Jar
+import org.gradle.language.jvm.tasks.ProcessResources
+import org.gradle.api.tasks.testing.Test
 import java.util.Properties
 
 plugins {
@@ -29,10 +30,14 @@ val targetNames = targetProperties.required("targets")
     .split(',')
     .map(String::trim)
     .filter(String::isNotEmpty)
+val skyblockApiVersion = targetProperties.required("skyblock_api")
 val targets = targetNames.associateWith { name ->
     Target(
         minecraft = targetProperties.required("$name.minecraft"),
         fabricApi = targetProperties.required("$name.fabric_api"),
+        moulConfig = targetProperties.required("$name.moul_config"),
+        modMenu = targetProperties.required("$name.mod_menu"),
+        skyblockApiCapability = targetProperties.required("$name.skyblock_api_capability"),
     )
 }
 val modVersion = providers.gradleProperty("mod_version").get()
@@ -44,6 +49,9 @@ allprojects {
     repositories {
         mavenCentral()
         maven("https://maven.fabricmc.net/")
+        maven("https://maven.notenoughupdates.org/releases/")
+        maven("https://maven.teamresourceful.com/repository/maven-public/")
+        maven("https://api.modrinth.com/maven")
     }
 }
 
@@ -68,6 +76,7 @@ subprojects {
         dependencies {
             required.project("P7dR8mSH") // Fabric API
             required.project("Ha28R6CL") // Fabric Language Kotlin
+            optional.project("mOgUt4GM") // Mod Menu
         }
         changelog.set(
             providers.environmentVariable("MODRINTH_CHANGELOG")
@@ -80,6 +89,23 @@ subprojects {
         add("implementation", "net.fabricmc:fabric-loader:0.19.3")
         add("implementation", "net.fabricmc.fabric-api:fabric-api:${target.fabricApi}")
         add("implementation", "net.fabricmc:fabric-language-kotlin:1.13.12+kotlin.2.4.0")
+        add("implementation", "org.notenoughupdates.moulconfig:${target.moulConfig}:4.7.2")
+        add("include", "org.notenoughupdates.moulconfig:${target.moulConfig}:4.7.2")
+        add("implementation", "tech.thatgravyboat:skyblock-api:$skyblockApiVersion") {
+            isTransitive = false
+            capabilities {
+                requireCapability("tech.thatgravyboat:skyblock-api-${target.skyblockApiCapability}")
+            }
+        }
+        add("include", "tech.thatgravyboat:skyblock-api:$skyblockApiVersion") {
+            isTransitive = false
+            capabilities {
+                requireCapability("tech.thatgravyboat:skyblock-api-${target.skyblockApiCapability}")
+            }
+        }
+        add("compileOnly", "maven.modrinth:modmenu:${target.modMenu}")
+        add("testImplementation", "org.junit.jupiter:junit-jupiter:5.12.2")
+        add("testRuntimeOnly", "org.junit.platform:junit-platform-launcher:1.12.2")
     }
 
     extensions.configure<org.gradle.api.plugins.JavaPluginExtension> {
@@ -113,10 +139,17 @@ subprojects {
             kotlin.srcDir(rootProject.file("src/main/kotlin"))
             kotlin.srcDir(rootProject.file("src/${target.minecraft}/kotlin"))
         }
+        sourceSets.named("test") {
+            kotlin.srcDir(rootProject.file("src/test/kotlin"))
+        }
     }
 
     tasks.withType<KotlinCompile>().configureEach {
         compilerOptions.jvmTarget.set(JvmTarget.JVM_25)
+    }
+
+    tasks.withType<Test>().configureEach {
+        useJUnitPlatform()
     }
 
     tasks.named<ProcessResources>("processResources") {
@@ -185,4 +218,7 @@ abstract class ReleaseManifestTask : DefaultTask() {
 data class Target(
     val minecraft: String,
     val fabricApi: String,
+    val moulConfig: String,
+    val modMenu: String,
+    val skyblockApiCapability: String,
 )

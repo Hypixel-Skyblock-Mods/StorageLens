@@ -1,0 +1,216 @@
+package org.hypixelskyblockmods.storagelens.feature.itemsearch
+
+import java.security.MessageDigest
+import java.util.Locale
+import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.world.item.ItemStack
+import org.hypixelskyblockmods.storagelens.util.ItemStackSerialization
+
+fun interface ItemSearchSource {
+    fun snapshot(): List<SearchableItem>
+}
+
+fun interface DerivedItemSearchSource {
+    fun derive(items: List<SearchableItem>): List<SearchableItem>
+}
+
+object ItemSourceRegistry {
+    private val sources = linkedMapOf<ItemSourceId, MutableList<ItemSearchSource>>()
+    private val derivedSources = linkedMapOf<ItemSourceId, MutableList<DerivedItemSearchSource>>()
+
+    fun register(id: ItemSourceId, source: ItemSearchSource) {
+        sources.getOrPut(id) { mutableListOf() }.add(source)
+    }
+
+    fun registerDerived(id: ItemSourceId, source: DerivedItemSearchSource) {
+        derivedSources.getOrPut(id) { mutableListOf() }.add(source)
+    }
+
+    fun snapshot(enabled: Set<ItemSourceId> = ItemSourceId.entries.toSet()): SourceSnapshot {
+        val items = mutableListOf<SearchableItem>()
+        val failures = linkedMapOf<ItemSourceId, Throwable>()
+        sources.forEach { (id, registered) ->
+            if (id !in enabled) return@forEach
+            registered.forEach { source ->
+                runCatching { source.snapshot().filterNot { it.stack.isEmpty || it.amount <= 0 }.map(SearchableItem::defensiveCopy) }
+                    .onSuccess(items::addAll)
+                    .onFailure { failures[id] = it }
+            }
+        }
+        derivedSources.forEach { (id, registered) ->
+            if (id !in enabled) return@forEach
+            registered.forEach { source ->
+                runCatching { source.derive(items.map(SearchableItem::defensiveCopy)).map(SearchableItem::defensiveCopy) }
+                    .onSuccess(items::addAll)
+                    .onFailure { failures[id] = it }
+            }
+        }
+        return SourceSnapshot(items, failures)
+    }
+
+    fun clear() {
+        sources.clear()
+        derivedSources.clear()
+    }
+}
+
+data class SourceSnapshot(val items: List<SearchableItem>, val failures: Map<ItemSourceId, Throwable>)
+
+object ItemFingerprintFactory {
+    fun create(stack: ItemStack, skyblockId: String?, cleanName: String): ItemFingerprint {
+        val normalized = stack.copyWithCount(1)
+        val encoded = ItemStackSerialization.encode(normalized)
+        return ItemFingerprint(
+            vanillaId = BuiltInRegistries.ITEM.getKey(normalized.item).toString(),
+            skyblockId = skyblockId,
+            cleanName = cleanName.lowercase(Locale.ROOT),
+            componentHash = hashComponentPayload(encoded),
+        )
+    }
+
+    internal fun hashComponentPayload(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
+}
+
+data class ItemSearchOptions(
+    val searchLore: Boolean = true,
+    val searchIds: Boolean = true,
+    val searchLocations: Boolean = false,
+)
+
+enum class ItemSearchSort {
+    AMOUNT,
+    VALUE,
+    RARITY,
+    NAME,
+}
+
+class ItemSearchIndex private constructor(private val entries: List<ItemSearchEntry>) {
+    fun all(): List<ItemSearchEntry> = entries.map(ItemSearchEntry::defensiveCopy)
+
+    fun query(
+        query: String,
+        category: ItemSourceCategory,
+        options: ItemSearchOptions,
+        sort: ItemSearchSort,
+        ascending: Boolean,
+    ): List<ItemSearchEntry> {
+        val terms = query.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+        val filtered = entries.filter { entry ->
+            (category == ItemSourceCategory.ALL || entry.locations.any { it.source.category == category }) &&
+                terms.all { term -> entry.matches(term, options) }
+        }
+        val comparator = when (sort) {
+            ItemSearchSort.AMOUNT -> compareBy<ItemSearchEntry> { it.totalAmount }
+            ItemSearchSort.VALUE -> compareBy(nullsLast()) { it.estimatedValue }
+            ItemSearchSort.RARITY -> compareBy(nullsLast()) { it.rarityOrdinal }
+            ItemSearchSort.NAME -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }
+        }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name }
+        val effective = if (ascending) comparator else comparator.reversedWithNullsLast(sort)
+        return filtered.sortedWith(effective).map(ItemSearchEntry::defensiveCopy)
+    }
+
+    companion object {
+        val EMPTY = ItemSearchIndex(emptyList())
+
+        fun build(items: List<SearchableItem>): ItemSearchIndex {
+            return build(items, allowEmptyStacks = false)
+        }
+
+        internal fun buildForTests(items: List<SearchableItem>): ItemSearchIndex =
+            build(items, allowEmptyStacks = true)
+
+        private fun build(items: List<SearchableItem>, allowEmptyStacks: Boolean): ItemSearchIndex {
+            val buckets = linkedMapOf<ItemFingerprint, MutableList<MutableEntry>>()
+            items.filterNot { (!allowEmptyStacks && it.stack.isEmpty) || it.amount <= 0 }.forEach { item ->
+                val bucket = buckets.getOrPut(item.fingerprint) { mutableListOf() }
+                val aggregate = bucket.firstOrNull { ItemStack.matches(it.displayStack.copyWithCount(1), item.stack.copyWithCount(1)) }
+                    ?: MutableEntry(item).also(bucket::add)
+                if (aggregate.locations.isNotEmpty()) aggregate.add(item)
+            }
+            return ItemSearchIndex(buckets.values.flatten().map(MutableEntry::freeze))
+        }
+    }
+
+    private class MutableEntry(first: SearchableItem) {
+        val fingerprint = first.fingerprint
+        val displayStack = first.stack.copyWithCount(1)
+        var totalAmount = first.amount
+        var estimatedValue: Long? = first.estimatedValue
+        var allValuesKnown = first.estimatedValue != null
+        var rarityOrdinal: Int? = first.rarityOrdinal
+        val locations = mutableListOf(first.defensiveCopy())
+
+        fun add(item: SearchableItem) {
+            val existing = locations.indexOfFirst { it.location.identity == item.location.identity }
+            if (existing >= 0) {
+                val previous = locations[existing]
+                if (item.origin.priority() <= previous.origin.priority()) return
+                totalAmount -= previous.amount
+                if (allValuesKnown) estimatedValue = estimatedValue?.minus(previous.estimatedValue ?: 0)
+                locations[existing] = item.defensiveCopy()
+            } else {
+                locations += item.defensiveCopy()
+            }
+            totalAmount += item.amount
+            if (allValuesKnown && item.estimatedValue != null) {
+                estimatedValue = (estimatedValue ?: 0L) + item.estimatedValue
+            } else {
+                allValuesKnown = false
+                estimatedValue = null
+            }
+            rarityOrdinal = listOfNotNull(rarityOrdinal, item.rarityOrdinal).maxOrNull()
+        }
+
+        fun freeze() = ItemSearchEntry(
+            fingerprint,
+            displayStack.copy(),
+            totalAmount,
+            estimatedValue.takeIf { allValuesKnown },
+            rarityOrdinal,
+            locations.map(SearchableItem::defensiveCopy),
+        )
+    }
+}
+
+private fun ItemSearchEntry.matches(term: String, options: ItemSearchOptions): Boolean {
+    val needle = term.lowercase(Locale.ROOT)
+    return locations.any { item ->
+        needle in item.searchableName.lowercase(Locale.ROOT) ||
+            (options.searchLore && item.searchableLore.any { needle in it.lowercase(Locale.ROOT) }) ||
+            (options.searchIds && item.skyblockId?.lowercase(Locale.ROOT)?.contains(needle) == true) ||
+            (options.searchLocations && (needle in item.source.displayName.lowercase(Locale.ROOT) || needle in item.location.label.lowercase(Locale.ROOT)))
+    }
+}
+
+private fun ItemDataOrigin.priority(): Int = when (this) {
+    ItemDataOrigin.LIVE_MENU, ItemDataOrigin.LIVE_PLAYER -> 4
+    ItemDataOrigin.LOCAL_OBSERVATION -> 3
+    ItemDataOrigin.SKYBLOCK_API_PROFILE -> 2
+    ItemDataOrigin.DERIVED -> 1
+}
+
+private fun ItemSearchEntry.defensiveCopy() = copy(
+    displayStack = displayStack.copy(),
+    locations = locations.map(SearchableItem::defensiveCopy),
+)
+
+private fun <T : Comparable<T>> nullsLast(): Comparator<T?> = Comparator { first, second ->
+    when {
+        first == null && second == null -> 0
+        first == null -> 1
+        second == null -> -1
+        else -> first.compareTo(second)
+    }
+}
+
+private fun Comparator<ItemSearchEntry>.reversedWithNullsLast(sort: ItemSearchSort): Comparator<ItemSearchEntry> = Comparator { first, second ->
+    val firstUnknown = sort == ItemSearchSort.VALUE && first.estimatedValue == null || sort == ItemSearchSort.RARITY && first.rarityOrdinal == null
+    val secondUnknown = sort == ItemSearchSort.VALUE && second.estimatedValue == null || sort == ItemSearchSort.RARITY && second.rarityOrdinal == null
+    when {
+        firstUnknown && !secondUnknown -> 1
+        !firstUnknown && secondUnknown -> -1
+        else -> -compare(first, second)
+    }
+}

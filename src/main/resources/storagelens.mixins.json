@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "org.hypixelskyblockmods.storagelens.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "ContainerScreenAccessor",
+    "GuiBlurMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
