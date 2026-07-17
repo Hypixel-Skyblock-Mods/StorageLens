@@ -166,6 +166,33 @@ data class SearchableItem(
     fun defensiveCopy(): SearchableItem = copy(stack = stack.copy(), location = location.copyLocation(), action = action.copyAction())
 }
 
+internal data class AuthoritativeItemScope(
+    val source: ItemSourceId,
+    val containerIdentity: String,
+)
+
+internal fun storageItemScope(page: StoragePageKey, rift: Boolean = false): AuthoritativeItemScope =
+    AuthoritativeItemScope(ItemSourceId.STORAGE, "storage:$rift:${page.type.name}:${page.number}")
+
+internal fun collectionItemScope(
+    source: ItemSourceId,
+    collection: String,
+    page: Int,
+    setId: Int,
+): AuthoritativeItemScope = AuthoritativeItemScope(source, "collection:$collection:$page:$setId")
+
+internal fun SearchableItem.authoritativeScope(): AuthoritativeItemScope? = when (val itemLocation = location) {
+    is ItemLocation.Storage -> AuthoritativeItemScope(
+        source,
+        "storage:${itemLocation.rift}:${itemLocation.page.type.name}:${itemLocation.page.number}",
+    )
+    is ItemLocation.Collection -> AuthoritativeItemScope(
+        source,
+        "collection:${itemLocation.collection}:${itemLocation.page}:${itemLocation.setId}",
+    )
+    else -> null
+}
+
 internal fun equippedArmorOwnershipIdentity(itemIndex: Int): String? =
     itemIndex.takeIf { it in 0..3 }?.let { "equipped-armor:$it" }
 

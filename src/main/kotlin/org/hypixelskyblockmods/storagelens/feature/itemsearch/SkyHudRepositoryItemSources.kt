@@ -9,9 +9,12 @@ import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyblockApiIt
 object SkyHudRepositoryItemSources {
     fun initialize() {
         ItemSourceRegistry.register(ItemSourceId.STORAGE, ::storage)
+        ItemSourceRegistry.registerAuthoritativeScopes(ItemSourceId.STORAGE, ::storageScopes)
         ItemSourceRegistry.register(ItemSourceId.LOADOUTS, ::loadouts)
         ItemSourceRegistry.register(ItemSourceId.WARDROBE, ::wardrobe)
+        ItemSourceRegistry.registerAuthoritativeScopes(ItemSourceId.WARDROBE, ::wardrobeScopes)
         ItemSourceRegistry.register(ItemSourceId.EQUIPMENT_WARDROBE, ::equipment)
+        ItemSourceRegistry.registerAuthoritativeScopes(ItemSourceId.EQUIPMENT_WARDROBE, ::equipmentScopes)
     }
 
     private fun storage(): List<SearchableItem> = ObservedStorageRepository.snapshot().flatMap { page ->
@@ -27,6 +30,9 @@ object SkyHudRepositoryItemSources {
             )
         }
     }
+
+    private fun storageScopes(): Set<AuthoritativeItemScope> = ObservedStorageRepository.snapshot()
+        .mapTo(linkedSetOf()) { storageItemScope(it.key) }
 
     private fun loadouts(): List<SearchableItem> = LoadoutRepository.snapshot().flatMap { loadout ->
         loadout.items.mapIndexedNotNull { index, stack ->
@@ -57,6 +63,9 @@ object SkyHudRepositoryItemSources {
         }
     }
 
+    private fun wardrobeScopes(): Set<AuthoritativeItemScope> = WardrobeRepository.sets.snapshot()
+        .mapTo(linkedSetOf()) { collectionItemScope(ItemSourceId.WARDROBE, "Wardrobe", it.page, it.id) }
+
     private fun equipment(): List<SearchableItem> = EquipmentRepository.sets.snapshot().flatMap { set ->
         set.items.mapIndexedNotNull { index, stack ->
             SkyblockApiItemSearchAdapter.searchable(
@@ -70,4 +79,7 @@ object SkyHudRepositoryItemSources {
             )
         }
     }
+
+    private fun equipmentScopes(): Set<AuthoritativeItemScope> = EquipmentRepository.sets.snapshot()
+        .mapTo(linkedSetOf()) { collectionItemScope(ItemSourceId.EQUIPMENT_WARDROBE, "Equipment", it.page, it.id) }
 }

@@ -14,9 +14,14 @@ fun interface DerivedItemSearchSource {
     fun derive(items: List<SearchableItem>): List<SearchableItem>
 }
 
+internal fun interface AuthoritativeItemScopeSource {
+    fun snapshot(): Set<AuthoritativeItemScope>
+}
+
 object ItemSourceRegistry {
     private val sources = linkedMapOf<ItemSourceId, MutableList<ItemSearchSource>>()
     private val derivedSources = linkedMapOf<ItemSourceId, MutableList<DerivedItemSearchSource>>()
+    private val authoritativeScopeSources = linkedMapOf<ItemSourceId, MutableList<AuthoritativeItemScopeSource>>()
 
     fun register(id: ItemSourceId, source: ItemSearchSource) {
         sources.getOrPut(id) { mutableListOf() }.add(source)
@@ -24,6 +29,10 @@ object ItemSourceRegistry {
 
     fun registerDerived(id: ItemSourceId, source: DerivedItemSearchSource) {
         derivedSources.getOrPut(id) { mutableListOf() }.add(source)
+    }
+
+    internal fun registerAuthoritativeScopes(id: ItemSourceId, source: AuthoritativeItemScopeSource) {
+        authoritativeScopeSources.getOrPut(id) { mutableListOf() }.add(source)
     }
 
     fun snapshot(enabled: Set<ItemSourceId> = ItemSourceId.entries.toSet()): SourceSnapshot {
@@ -37,20 +46,31 @@ object ItemSourceRegistry {
                     .onFailure { failures[id] = it }
             }
         }
-        derivedSources.forEach { (id, registered) ->
+        val authoritativeScopes = linkedSetOf<AuthoritativeItemScope>()
+        authoritativeScopeSources.forEach { (id, registered) ->
             if (id !in enabled) return@forEach
             registered.forEach { source ->
-                runCatching { source.derive(items.map(SearchableItem::defensiveCopy)).map(SearchableItem::defensiveCopy) }
-                    .onSuccess(items::addAll)
+                runCatching(source::snapshot)
+                    .onSuccess(authoritativeScopes::addAll)
                     .onFailure { failures[id] = it }
             }
         }
-        return SourceSnapshot(items, failures)
+        val resolvedItems = resolveObservedLocations(items, authoritativeScopes).toMutableList()
+        derivedSources.forEach { (id, registered) ->
+            if (id !in enabled) return@forEach
+            registered.forEach { source ->
+                runCatching { source.derive(resolvedItems.map(SearchableItem::defensiveCopy)).map(SearchableItem::defensiveCopy) }
+                    .onSuccess(resolvedItems::addAll)
+                    .onFailure { failures[id] = it }
+            }
+        }
+        return SourceSnapshot(resolvedItems, failures)
     }
 
     fun clear() {
         sources.clear()
         derivedSources.clear()
+        authoritativeScopeSources.clear()
     }
 }
 
@@ -121,6 +141,11 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
         internal fun buildForTests(items: List<SearchableItem>): ItemSearchIndex =
             build(items, allowEmptyStacks = true)
 
+        internal fun buildForTests(
+            items: List<SearchableItem>,
+            authoritativeScopes: Set<AuthoritativeItemScope>,
+        ): ItemSearchIndex = build(resolveObservedLocations(items, authoritativeScopes), allowEmptyStacks = true)
+
         private fun build(items: List<SearchableItem>, allowEmptyStacks: Boolean): ItemSearchIndex {
             val buckets = linkedMapOf<ItemFingerprint, MutableList<MutableEntry>>()
             resolveObservedLocations(items)
@@ -177,10 +202,16 @@ private val observedLocationSources = setOf(
     ItemSourceId.EQUIPMENT_WARDROBE,
 )
 
-private fun resolveObservedLocations(items: List<SearchableItem>): List<SearchableItem> {
+private fun resolveObservedLocations(
+    items: List<SearchableItem>,
+    authoritativeScopes: Set<AuthoritativeItemScope> = emptySet(),
+): List<SearchableItem> {
     val resolved = mutableListOf<SearchableItem>()
     val positions = mutableMapOf<Pair<ItemSourceId, String>, Int>()
     items.forEach { item ->
+        if (item.authoritativeScope() in authoritativeScopes && item.origin.priority() < ItemDataOrigin.LOCAL_OBSERVATION.priority()) {
+            return@forEach
+        }
         if (item.source !in observedLocationSources) {
             resolved += item
             return@forEach

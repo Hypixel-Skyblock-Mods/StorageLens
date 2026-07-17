@@ -1,6 +1,7 @@
 package org.hypixelskyblockmods.storagelens.feature.itemsearch
 
 import net.minecraft.world.item.ItemStack
+import org.hypixelskyblockmods.storagelens.feature.storage.StoragePageKey
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -109,7 +110,7 @@ class ItemSearchIndexTest {
 
     @Test
     fun `observed storage slot replaces changed api fingerprint`() {
-        val location = ItemLocation.Storage(org.hypixelskyblockmods.storagelens.feature.storage.StoragePageKey.enderChest(2), 4)
+        val location = ItemLocation.Storage(StoragePageKey.enderChest(2), 4)
         val api = item(
             ItemStack.EMPTY,
             1,
@@ -132,6 +133,88 @@ class ItemSearchIndexTest {
         assertEquals(1, entries.size)
         assertEquals("new_item", entries.single().name)
         assertEquals(32, entries.single().totalAmount)
+    }
+
+    @Test
+    fun `observed storage page removes stale api items from other slots`() {
+        val page = StoragePageKey.enderChest(1)
+        val staleApiItem = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint("stale_item"),
+            ItemLocation.Storage(page, 7),
+            origin = ItemDataOrigin.SKYBLOCK_API_PROFILE,
+            source = ItemSourceId.STORAGE,
+        )
+        val currentItem = item(
+            ItemStack.EMPTY,
+            4,
+            fingerprint("current_item"),
+            ItemLocation.Storage(page, 2),
+            source = ItemSourceId.STORAGE,
+        )
+        val otherPageItem = item(
+            ItemStack.EMPTY,
+            8,
+            fingerprint("other_page_item"),
+            ItemLocation.Storage(StoragePageKey.enderChest(2), 7),
+            origin = ItemDataOrigin.SKYBLOCK_API_PROFILE,
+            source = ItemSourceId.STORAGE,
+        )
+
+        val entries = ItemSearchIndex.buildForTests(
+            listOf(staleApiItem, currentItem, otherPageItem),
+            setOf(storageItemScope(page)),
+        ).all()
+
+        assertEquals(setOf("current_item", "other_page_item"), entries.mapTo(mutableSetOf()) { it.name })
+    }
+
+    @Test
+    fun `observed empty storage page removes every stale api item`() {
+        val page = StoragePageKey.backpack(3)
+        val staleApiItem = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint("removed_item"),
+            ItemLocation.Storage(page, 0),
+            origin = ItemDataOrigin.SKYBLOCK_API_PROFILE,
+            source = ItemSourceId.STORAGE,
+        )
+
+        val entries = ItemSearchIndex.buildForTests(
+            listOf(staleApiItem),
+            setOf(storageItemScope(page)),
+        ).all()
+
+        assertTrue(entries.isEmpty())
+    }
+
+    @Test
+    fun `observed wardrobe set removes stale api items but preserves other sets`() {
+        val staleApiItem = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint("old_helmet"),
+            ItemLocation.Collection("Wardrobe", page = 1, setId = 2, itemIndex = 0),
+            origin = ItemDataOrigin.SKYBLOCK_API_PROFILE,
+            source = ItemSourceId.WARDROBE,
+        )
+        val otherSetItem = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint("other_helmet"),
+            ItemLocation.Collection("Wardrobe", page = 1, setId = 3, itemIndex = 0),
+            origin = ItemDataOrigin.SKYBLOCK_API_PROFILE,
+            source = ItemSourceId.WARDROBE,
+        )
+
+        val entries = ItemSearchIndex.buildForTests(
+            listOf(staleApiItem, otherSetItem),
+            setOf(collectionItemScope(ItemSourceId.WARDROBE, "Wardrobe", page = 1, setId = 2)),
+        ).all()
+
+        assertEquals(listOf("other_helmet"), entries.map { it.name })
     }
 
     @Test
