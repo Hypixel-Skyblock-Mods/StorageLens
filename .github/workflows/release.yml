@@ -16,7 +16,6 @@ jobs:
     env:
       MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
       MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-      MODRINTH_CHANGELOG: "Release notes: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
       RELEASE_MANIFEST: build/release/manifest.json
 
     steps:
@@ -62,6 +61,26 @@ jobs:
           fi
 
           echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_notes="docs/releases/${VERSION}.md"
+          if [[ -f "$release_notes" ]]; then
+            echo "RELEASE_NOTES_FILE=$release_notes" >> "$GITHUB_ENV"
+            {
+              echo "MODRINTH_CHANGELOG<<STORAGELENS_CHANGELOG_EOF"
+              cat "$release_notes"
+              echo
+              echo "GitHub release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+              echo "STORAGELENS_CHANGELOG_EOF"
+            } >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_NOTES_FILE=" >> "$GITHUB_ENV"
+            echo "MODRINTH_CHANGELOG=Release notes: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          fi
 
       - name: Check existing Modrinth versions
         shell: bash
@@ -132,6 +151,14 @@ jobs:
 
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${jars[@]}" --clobber
+            if [[ -n "${RELEASE_NOTES_FILE:-}" ]]; then
+              gh release edit "$GITHUB_REF_NAME" --notes-file "$RELEASE_NOTES_FILE"
+            fi
+          elif [[ -n "${RELEASE_NOTES_FILE:-}" ]]; then
+            gh release create "$GITHUB_REF_NAME" "${jars[@]}" \
+              --verify-tag \
+              --notes-file "$RELEASE_NOTES_FILE" \
+              --title "StorageLens ${VERSION}"
           else
             gh release create "$GITHUB_REF_NAME" "${jars[@]}" \
               --verify-tag \
