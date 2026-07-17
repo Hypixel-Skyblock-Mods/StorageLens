@@ -28,18 +28,6 @@ object ItemSearchKeyMapping {
         return mapping.consumeClick()
     }
 
-    fun matchesKeyboardKey(client: Minecraft, key: Int): Boolean {
-        synchronize(client)
-        val bound = KeyMappingHelper.getBoundKeyOf(mapping)
-        return bound.type == InputConstants.Type.KEYSYM && bound.value == key
-    }
-
-    fun discardPendingClicks() {
-        while (mapping.consumeClick()) {
-            // Drain clicks already queued for the key event handled by an open screen.
-        }
-    }
-
     private fun synchronize(client: Minecraft) {
         val config = SkyHudConfigManager.config.itemSearch
         val bound = KeyMappingHelper.getBoundKeyOf(mapping)

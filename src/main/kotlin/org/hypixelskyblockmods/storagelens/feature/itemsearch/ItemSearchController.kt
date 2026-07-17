@@ -2,16 +2,12 @@ package org.hypixelskyblockmods.storagelens.feature.itemsearch
 
 import java.util.concurrent.CompletableFuture
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.components.EditBox
-import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
 import net.minecraft.network.chat.Component
 import org.hypixelskyblockmods.storagelens.config.ItemSearchSourceConfig
 import org.hypixelskyblockmods.storagelens.config.SkyHudConfigManager
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyBlockProfileIdentity
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyblockApiItemSearchAdapter
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyblockApiStorageAdapter
-import org.hypixelskyblockmods.storagelens.mixin.ContainerScreenAccessor
 import org.hypixelskyblockmods.storagelens.platform.ScreenCompat
 import org.slf4j.LoggerFactory
 
@@ -85,22 +81,6 @@ object ItemSearchController {
     fun onClientTick(client: Minecraft) {
         val pressed = ItemSearchKeyMapping.consumeClick(client)
         if (SkyHudConfigManager.config.itemSearch.enabled && pressed && ScreenCompat.currentScreen() == null) open()
-    }
-
-    fun onScreenKeyPressed(screen: Screen, key: Int): Boolean {
-        val config = SkyHudConfigManager.config.itemSearch
-        if (!config.enabled || !ItemSearchKeyMapping.matchesKeyboardKey(Minecraft.getInstance(), key) || screen.focused is EditBox) return false
-        ItemSearchKeyMapping.discardPendingClicks()
-        if (screen is ItemSearchScreen) {
-            screen.onClose()
-            return true
-        }
-        if (screen !is AbstractContainerScreen<*> || !SkyblockApiItemSearchAdapter.isOnSkyBlock()) return false
-        val hovered = (screen as ContainerScreenAccessor).storageLensHoveredSlot()?.item
-        val query = hovered?.takeUnless { it.isEmpty }?.let(SkyblockApiItemSearchAdapter::cleanName).orEmpty()
-        Minecraft.getInstance().player?.closeContainer()
-        Minecraft.getInstance().execute { open(query) }
-        return true
     }
 
     fun remember(query: String, category: ItemSourceCategory) {

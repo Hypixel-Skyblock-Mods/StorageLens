@@ -22,7 +22,6 @@ import tech.thatgravyboat.skyblockapi.api.events.screen.ContainerCloseEvent
 import tech.thatgravyboat.skyblockapi.api.events.screen.ContainerInitializedEvent
 import tech.thatgravyboat.skyblockapi.api.events.screen.InventoryChangeEvent
 import tech.thatgravyboat.skyblockapi.api.events.screen.PlayerInventoryChangeEvent
-import tech.thatgravyboat.skyblockapi.api.events.screen.ScreenKeyPressedEvent
 
 object SkyblockApiIntegration {
     fun initialize() {
@@ -79,9 +78,6 @@ object SkyblockApiIntegration {
         SkyBlockAPI.eventBus.register<BlockChangeEvent> { event ->
             val remainsChest = SkyblockApiItemSearchAdapter.isChest(event.state)
             Minecraft.getInstance().execute { IslandChestRepository.onBlockChanged(event.pos, remainsChest) }
-        }
-        SkyBlockAPI.eventBus.register<ScreenKeyPressedEvent.Pre> { event ->
-            if (ItemSearchController.onScreenKeyPressed(event.screen, event.key)) event.cancel()
         }
         SkyBlockAPI.eventBus.register<ProfileChangeEvent> {
             Minecraft.getInstance().execute {
