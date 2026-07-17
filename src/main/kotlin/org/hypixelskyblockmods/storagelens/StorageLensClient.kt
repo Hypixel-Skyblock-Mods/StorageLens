@@ -60,7 +60,7 @@ object StorageLensClient : ClientModInitializer {
                 val maxX = positions.maxOf { it.x }.toDouble() + 1.0
                 val maxY = positions.maxOf { it.y }.toDouble() + 1.0
                 val maxZ = positions.maxOf { it.z }.toDouble() + 1.0
-                Gizmos.cuboid(AABB(minX, minY, minZ, maxX, maxY, maxZ), style).setAlwaysOnTop()
+                Gizmos.cuboid(AABB(minX, minY, minZ, maxX, maxY, maxZ), style)
             }
         }
         ClientLifecycleEvents.CLIENT_STOPPING.register {

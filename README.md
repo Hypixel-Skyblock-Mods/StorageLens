@@ -21,7 +21,8 @@ interface.
   StorageLens never retrieves, moves, clicks, walks to, or opens an item.
 - Choose one location from the blurred location picker, or use **Show All** to
   highlight every distinct island chest containing the item. Double chests use
-  one combined outline.
+  one combined outline. Chest highlights respect normal world occlusion and do
+  not render through blocks.
 - Configure highlight duration from 1 to 60 seconds. The default is 10 seconds.
 
 ## Profile-aware data
