@@ -161,9 +161,16 @@ data class SearchableItem(
     val skyblockId: String? = null,
     val rarityOrdinal: Int? = null,
     val estimatedValue: Long? = null,
+    val ownershipIdentity: String? = null,
 ) {
     fun defensiveCopy(): SearchableItem = copy(stack = stack.copy(), location = location.copyLocation(), action = action.copyAction())
 }
+
+internal fun equippedArmorOwnershipIdentity(itemIndex: Int): String? =
+    itemIndex.takeIf { it in 0..3 }?.let { "equipped-armor:$it" }
+
+internal fun equippedArmorOwnershipIdentityFromInventorySlot(slot: Int): String? =
+    equippedArmorOwnershipIdentity(39 - slot)
 
 data class ItemSearchEntry(
     val fingerprint: ItemFingerprint,

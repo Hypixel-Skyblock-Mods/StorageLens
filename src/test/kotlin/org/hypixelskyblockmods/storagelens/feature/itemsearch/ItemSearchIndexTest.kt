@@ -53,6 +53,61 @@ class ItemSearchIndexTest {
     }
 
     @Test
+    fun `equipped armor mirrored by active wardrobe counts once`() {
+        val fingerprint = fingerprint("warden_helmet")
+        val ownershipIdentity = "equipped-armor:0"
+        val equipped = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Inventory(InventoryRealm.NORMAL, 39, equipped = true),
+            source = ItemSourceId.EQUIPPED,
+            value = 100,
+            ownershipIdentity = ownershipIdentity,
+        )
+        val wardrobe = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Collection("Wardrobe", 1, 2, 0),
+            source = ItemSourceId.WARDROBE,
+            value = 100,
+            ownershipIdentity = ownershipIdentity,
+        )
+
+        val index = ItemSearchIndex.buildForTests(listOf(equipped, wardrobe))
+        val entry = index.all().single()
+
+        assertEquals(1, entry.totalAmount)
+        assertEquals(100, entry.estimatedValue)
+        assertEquals(2, entry.locations.size)
+        assertEquals(1, index.query("", ItemSourceCategory.INVENTORY, ItemSearchOptions(), ItemSearchSort.AMOUNT, false).size)
+        assertEquals(1, index.query("", ItemSourceCategory.WARDROBE_EQUIPMENT, ItemSearchOptions(), ItemSearchSort.AMOUNT, false).size)
+    }
+
+    @Test
+    fun `inactive wardrobe armor remains separate ownership`() {
+        val fingerprint = fingerprint("warden_helmet")
+        val equipped = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Inventory(InventoryRealm.NORMAL, 39, equipped = true),
+            source = ItemSourceId.EQUIPPED,
+            ownershipIdentity = "equipped-armor:0",
+        )
+        val stored = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Collection("Wardrobe", 1, 3, 0),
+            source = ItemSourceId.WARDROBE,
+        )
+
+        assertEquals(2, ItemSearchIndex.buildForTests(listOf(equipped, stored)).all().single().totalAmount)
+    }
+
+    @Test
     fun `observed storage slot replaces changed api fingerprint`() {
         val location = ItemLocation.Storage(org.hypixelskyblockmods.storagelens.feature.storage.StoragePageKey.enderChest(2), 4)
         val api = item(
@@ -190,6 +245,7 @@ class ItemSearchIndexTest {
         value: Long? = null,
         updated: Long? = 1_000L,
         source: ItemSourceId = ItemSourceId.INVENTORY,
+        ownershipIdentity: String? = null,
     ) = SearchableItem(
         stack = stack,
         amount = amount,
@@ -202,6 +258,7 @@ class ItemSearchIndexTest {
         searchableLore = lore,
         skyblockId = skyblockId,
         estimatedValue = value,
+        ownershipIdentity = ownershipIdentity,
     )
 
     private fun fingerprint(id: String) = ItemFingerprint("minecraft:stone", id.uppercase(), id, id)

@@ -52,6 +52,7 @@ object SkyHudRepositoryItemSources {
                 ItemNavigationAction.Collection(CollectionType.WARDROBE, set.page, set.id, index),
                 ItemDataOrigin.LOCAL_OBSERVATION,
                 set.updatedAtEpochMillis,
+                ownershipIdentity = if (set.selected) equippedArmorOwnershipIdentity(index) else null,
             )
         }
     }

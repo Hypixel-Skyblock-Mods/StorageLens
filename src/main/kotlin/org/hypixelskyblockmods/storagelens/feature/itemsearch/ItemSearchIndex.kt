@@ -138,9 +138,6 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
     private class MutableEntry(first: SearchableItem) {
         val fingerprint = first.fingerprint
         val displayStack = first.stack.copyWithCount(1)
-        var totalAmount = first.amount
-        var estimatedValue: Long? = first.estimatedValue
-        var allValuesKnown = first.estimatedValue != null
         var rarityOrdinal: Int? = first.rarityOrdinal
         val locations = mutableListOf(first.defensiveCopy())
 
@@ -149,30 +146,28 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
             if (existing >= 0) {
                 val previous = locations[existing]
                 if (item.origin.priority() <= previous.origin.priority()) return
-                totalAmount -= previous.amount
-                if (allValuesKnown) estimatedValue = estimatedValue?.minus(previous.estimatedValue ?: 0)
                 locations[existing] = item.defensiveCopy()
             } else {
                 locations += item.defensiveCopy()
             }
-            totalAmount += item.amount
-            if (allValuesKnown && item.estimatedValue != null) {
-                estimatedValue = (estimatedValue ?: 0L) + item.estimatedValue
-            } else {
-                allValuesKnown = false
-                estimatedValue = null
-            }
             rarityOrdinal = listOfNotNull(rarityOrdinal, item.rarityOrdinal).maxOrNull()
         }
 
-        fun freeze() = ItemSearchEntry(
-            fingerprint,
-            displayStack.copy(),
-            totalAmount,
-            estimatedValue.takeIf { allValuesKnown },
-            rarityOrdinal,
-            locations.map(SearchableItem::defensiveCopy),
-        )
+        fun freeze(): ItemSearchEntry {
+            val countedOwnership = mutableSetOf<String>()
+            val ownedItems = locations.filter { item ->
+                item.ownershipIdentity?.let(countedOwnership::add) ?: true
+            }
+            val allValuesKnown = ownedItems.all { it.estimatedValue != null }
+            return ItemSearchEntry(
+                fingerprint,
+                displayStack.copy(),
+                ownedItems.sumOf(SearchableItem::amount),
+                ownedItems.sumOf { it.estimatedValue ?: 0L }.takeIf { allValuesKnown },
+                rarityOrdinal,
+                locations.map(SearchableItem::defensiveCopy),
+            )
+        }
     }
 }
 

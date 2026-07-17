@@ -82,6 +82,11 @@ object PlayerInventorySearchRepository {
                     if (realm == currentRealm) ItemNavigationAction.Inventory(realm, item.slot) else ItemNavigationAction.None,
                     if (realm == currentRealm) ItemDataOrigin.LIVE_PLAYER else ItemDataOrigin.LOCAL_OBSERVATION,
                     if (realm == currentRealm) System.currentTimeMillis() else snapshot.updatedAtEpochMillis,
+                    ownershipIdentity = if (realm == InventoryRealm.NORMAL && item.equipped) {
+                        equippedArmorOwnershipIdentityFromInventorySlot(item.slot)
+                    } else {
+                        null
+                    },
                 )
             }
         }

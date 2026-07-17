@@ -84,6 +84,7 @@ object SkyblockApiItemSearchAdapter {
         action: ItemNavigationAction,
         origin: ItemDataOrigin,
         updatedAtEpochMillis: Long? = null,
+        ownershipIdentity: String? = null,
     ): SearchableItem? {
         if (stack.isEmpty || amount <= 0) return null
         val copy = stack.copyWithCount(1)
@@ -104,6 +105,7 @@ object SkyblockApiItemSearchAdapter {
             skyblockId = skyblockId,
             rarityOrdinal = copy.getData(DataTypes.RARITY)?.ordinal,
             estimatedValue = unitValue?.saturatedMultiply(amount),
+            ownershipIdentity = ownershipIdentity,
         )
     }
 
@@ -166,6 +168,7 @@ object SkyblockApiItemSearchAdapter {
     }
 
     private fun armorWardrobe(): List<SearchableItem> = profileSnapshot {
+        val currentSlot = ArmorWardrobeAPI.currentSlot
         ArmorWardrobeAPI.slots.filterNot { it.locked }.flatMap { slot ->
             val page = (slot.id - 1) / 9 + 1
             slot.slots.mapIndexedNotNull { index, stack ->
@@ -176,6 +179,11 @@ object SkyblockApiItemSearchAdapter {
                     ItemLocation.Collection("Wardrobe", page, slot.id, index),
                     ItemNavigationAction.Collection(org.hypixelskyblockmods.storagelens.feature.itemsearch.CollectionType.WARDROBE, page, slot.id, index),
                     ItemDataOrigin.SKYBLOCK_API_PROFILE,
+                    ownershipIdentity = if (slot.id == currentSlot) {
+                        org.hypixelskyblockmods.storagelens.feature.itemsearch.equippedArmorOwnershipIdentity(index)
+                    } else {
+                        null
+                    },
                 )
             }
         }
