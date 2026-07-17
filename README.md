@@ -81,8 +81,8 @@ Build and test both supported targets:
 Production JARs are written to:
 
 ```text
-versions/mc26_1_2/build/libs/StorageLens-1.0.0+mc26.1.2.jar
-versions/mc26_2/build/libs/StorageLens-1.0.0+mc26.2.jar
+versions/mc26_1_2/build/libs/StorageLens-<mod_version>+mc26.1.2.jar
+versions/mc26_2/build/libs/StorageLens-<mod_version>+mc26.2.jar
 ```
 
 ## Releases
