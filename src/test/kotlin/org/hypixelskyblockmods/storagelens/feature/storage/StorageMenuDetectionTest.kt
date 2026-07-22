@@ -37,4 +37,10 @@ class StorageMenuDetectionTest {
         assertNull(StorageMenuDetection.parsePageTitle("Backpack (Slot #19)"))
         assertNull(StorageMenuDetection.parsePageTitle("Chest (1/9)"))
     }
+
+    @Test
+    fun `storage page slots exclude top controls and player inventory`() {
+        assertEquals(9..53, storagePageSlotRange(rowCount = 6))
+        assertEquals(9..17, storagePageSlotRange(rowCount = 2))
+    }
 }

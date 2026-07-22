@@ -1,5 +1,6 @@
 package org.hypixelskyblockmods.storagelens.feature.itemsearch
 
+import java.util.UUID
 import net.minecraft.world.item.ItemStack
 import org.hypixelskyblockmods.storagelens.feature.storage.StoragePageKey
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -106,6 +107,59 @@ class ItemSearchIndexTest {
         )
 
         assertEquals(2, ItemSearchIndex.buildForTests(listOf(equipped, stored)).all().single().totalAmount)
+    }
+
+    @Test
+    fun `loadout references do not increase owned amount or value`() {
+        val fingerprint = fingerprint("warden_helmet")
+        val wardrobe = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Collection("Wardrobe", 1, 3, 0),
+            source = ItemSourceId.WARDROBE,
+            value = 100,
+        )
+        val loadout = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Collection("Loadout", 1, 2, 0),
+            source = ItemSourceId.LOADOUTS,
+            value = 100,
+            contributesToTotals = false,
+        )
+
+        val entry = ItemSearchIndex.buildForTests(listOf(wardrobe, loadout)).all().single()
+
+        assertEquals(1, entry.totalAmount)
+        assertEquals(100, entry.estimatedValue)
+        assertEquals(2, entry.locations.size)
+    }
+
+    @Test
+    fun `borrowed museum item is removed when its instance is held elsewhere`() {
+        val fingerprint = fingerprint("divan_helmet")
+        val uuid = UUID.randomUUID()
+        val museum = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Container("Museum mining", slot = 0),
+            source = ItemSourceId.MUSEUM,
+            instanceUuid = uuid,
+        )
+        val inventory = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Inventory(InventoryRealm.NORMAL, 10),
+            instanceUuid = uuid,
+        )
+
+        val resolved = resolveMuseumLoans(listOf(museum, inventory))
+
+        assertEquals(listOf(ItemSourceId.INVENTORY), resolved.map(SearchableItem::source))
     }
 
     @Test
@@ -329,6 +383,8 @@ class ItemSearchIndexTest {
         updated: Long? = 1_000L,
         source: ItemSourceId = ItemSourceId.INVENTORY,
         ownershipIdentity: String? = null,
+        instanceUuid: UUID? = null,
+        contributesToTotals: Boolean = true,
     ) = SearchableItem(
         stack = stack,
         amount = amount,
@@ -342,6 +398,8 @@ class ItemSearchIndexTest {
         skyblockId = skyblockId,
         estimatedValue = value,
         ownershipIdentity = ownershipIdentity,
+        instanceUuid = instanceUuid,
+        contributesToTotals = contributesToTotals,
     )
 
     private fun fingerprint(id: String) = ItemFingerprint("minecraft:stone", id.uppercase(), id, id)

@@ -3,6 +3,7 @@ package org.hypixelskyblockmods.storagelens.feature.itemsearch
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
 import net.minecraft.world.inventory.ChestMenu
+import net.minecraft.world.item.ItemStack
 import org.hypixelskyblockmods.storagelens.feature.equipment.EquipmentDetector
 import org.hypixelskyblockmods.storagelens.feature.equipment.EquipmentRepository
 import org.hypixelskyblockmods.storagelens.feature.loadouts.LoadoutDetector
@@ -23,9 +24,13 @@ object ContainerMenuObservation {
     }
 
     fun observe(title: String, menu: ChestMenu) {
+        observe(title, menu, null)
+    }
+
+    fun observe(title: String, menu: ChestMenu, menuItems: List<ItemStack>?) {
         backingTitle = title
         backingMenu = menu
-        observeValidated(title, menu)
+        observeValidated(title, menu, menuItems)
     }
 
     fun onClientTick() {
@@ -34,7 +39,7 @@ object ContainerMenuObservation {
             clearBacking()
             return
         }
-        observeValidated(backingTitle ?: return, menu)
+        observeValidated(backingTitle ?: return, menu, null)
     }
 
     fun clearBacking() {
@@ -42,8 +47,8 @@ object ContainerMenuObservation {
         backingMenu = null
     }
 
-    private fun observeValidated(title: String, menu: ChestMenu) {
-        ObservedStorageRepository.observe(title, menu)
+    private fun observeValidated(title: String, menu: ChestMenu, menuItems: List<ItemStack>?) {
+        ObservedStorageRepository.observe(title, menu, menuItems)
         LoadoutDetector.detect(title, menu)?.let { LoadoutRepository.remember(it.page, it.menu) }
         WardrobeDetector.detect(title, menu)?.let { WardrobeRepository.sets.remember(it.page, it.menu) }
         EquipmentDetector.detect(title, menu)?.let { EquipmentRepository.sets.remember(it.page, it.menu) }

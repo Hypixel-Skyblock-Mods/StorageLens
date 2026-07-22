@@ -1,5 +1,6 @@
 package org.hypixelskyblockmods.storagelens.feature.itemsearch
 
+import java.util.UUID
 import net.minecraft.core.BlockPos
 import net.minecraft.world.item.ItemStack
 import org.hypixelskyblockmods.storagelens.feature.storage.StoragePageKey
@@ -162,6 +163,8 @@ data class SearchableItem(
     val rarityOrdinal: Int? = null,
     val estimatedValue: Long? = null,
     val ownershipIdentity: String? = null,
+    val instanceUuid: UUID? = null,
+    val contributesToTotals: Boolean = true,
 ) {
     fun defensiveCopy(): SearchableItem = copy(stack = stack.copy(), location = location.copyLocation(), action = action.copyAction())
 }

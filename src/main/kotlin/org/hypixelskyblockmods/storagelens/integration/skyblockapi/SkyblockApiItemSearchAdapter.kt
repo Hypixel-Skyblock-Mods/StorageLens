@@ -85,6 +85,7 @@ object SkyblockApiItemSearchAdapter {
         origin: ItemDataOrigin,
         updatedAtEpochMillis: Long? = null,
         ownershipIdentity: String? = null,
+        contributesToTotals: Boolean = true,
     ): SearchableItem? {
         if (stack.isEmpty || amount <= 0) return null
         val copy = stack.copyWithCount(1)
@@ -106,6 +107,8 @@ object SkyblockApiItemSearchAdapter {
             rarityOrdinal = copy.getData(DataTypes.RARITY)?.ordinal,
             estimatedValue = unitValue?.saturatedMultiply(amount),
             ownershipIdentity = ownershipIdentity,
+            instanceUuid = copy.getData(DataTypes.UUID),
+            contributesToTotals = contributesToTotals,
         )
     }
 
@@ -263,6 +266,10 @@ object SkyblockApiItemSearchAdapter {
     private fun museum(): List<SearchableItem> = profileSnapshot {
         MuseumAPI.getItemsWithCategory().flatMap { (category, items) ->
             items.mapIndexedNotNull { index, stack ->
+                val id = stack.getData(DataTypes.ID)
+                if (!category.isSpecial && (id == null || !MuseumAPI.isStoredInMuseum(SkyBlockId.item(id)))) {
+                    return@mapIndexedNotNull null
+                }
                 searchable(
                     stack,
                     stack.count.toLong(),

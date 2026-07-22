@@ -49,7 +49,7 @@ object ObservedStorageRepository {
     private var livePageKey: StoragePageKey? = null
     private var liveMenu: ChestMenu? = null
 
-    fun observe(title: String, menu: ChestMenu) {
+    fun observe(title: String, menu: ChestMenu, menuItems: List<ItemStack>? = null) {
         val target = StorageMenuDetection.detect(title, menu) ?: return
         ensureProfileState()
         captureLivePage()
@@ -58,7 +58,11 @@ object ObservedStorageRepository {
             is StorageMenuTarget.Page -> {
                 livePageKey = target.key
                 liveMenu = target.menu
-                captureLivePage()
+                if (menuItems == null) {
+                    captureLivePage()
+                } else {
+                    capturePage(target.key, menu.rowCount, menuItems)
+                }
             }
         }
     }
@@ -180,10 +184,14 @@ object ObservedStorageRepository {
     private fun captureLivePage() {
         val key = livePageKey ?: return
         val menu = liveMenu ?: return
+        capturePage(key, menu.rowCount, menu.items)
+    }
+
+    private fun capturePage(key: StoragePageKey, rowCount: Int, menuItems: List<ItemStack>) {
         val now = System.currentTimeMillis()
         val observed = ObservedStoragePage(
             key = key,
-            items = menu.items.take(menu.rowCount * 9).drop(9).map(ItemStack::copy),
+            items = storagePageItems(menuItems, rowCount),
             updatedAtEpochMillis = now,
             origin = ItemDataOrigin.LOCAL_OBSERVATION,
         )
@@ -228,3 +236,8 @@ object ObservedStorageRepository {
 
     private fun SkyBlockProfileIdentity.toProfileKey() = ProfileKey(accountUuid, profileName)
 }
+
+internal fun storagePageItems(menuItems: List<ItemStack>, rowCount: Int): List<ItemStack> =
+    storagePageSlotRange(rowCount).mapNotNull(menuItems::getOrNull).map(ItemStack::copy)
+
+internal fun storagePageSlotRange(rowCount: Int): IntRange = 9 until rowCount.coerceAtLeast(1) * 9

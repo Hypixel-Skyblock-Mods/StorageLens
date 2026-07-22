@@ -55,7 +55,7 @@ object ItemSourceRegistry {
                     .onFailure { failures[id] = it }
             }
         }
-        val resolvedItems = resolveObservedLocations(items, authoritativeScopes).toMutableList()
+        val resolvedItems = resolveMuseumLoans(resolveObservedLocations(items, authoritativeScopes)).toMutableList()
         derivedSources.forEach { (id, registered) ->
             if (id !in enabled) return@forEach
             registered.forEach { source ->
@@ -148,7 +148,7 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
 
         private fun build(items: List<SearchableItem>, allowEmptyStacks: Boolean): ItemSearchIndex {
             val buckets = linkedMapOf<ItemFingerprint, MutableList<MutableEntry>>()
-            resolveObservedLocations(items)
+            resolveMuseumLoans(resolveObservedLocations(items))
                 .filterNot { (!allowEmptyStacks && it.stack.isEmpty) || it.amount <= 0 }
                 .forEach { item ->
                 val bucket = buckets.getOrPut(item.fingerprint) { mutableListOf() }
@@ -181,7 +181,7 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
         fun freeze(): ItemSearchEntry {
             val countedOwnership = mutableSetOf<String>()
             val ownedItems = locations.filter { item ->
-                item.ownershipIdentity?.let(countedOwnership::add) ?: true
+                item.contributesToTotals && (item.ownershipIdentity?.let(countedOwnership::add) ?: true)
             }
             val allValuesKnown = ownedItems.all { it.estimatedValue != null }
             return ItemSearchEntry(
@@ -193,6 +193,17 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
                 locations.map(SearchableItem::defensiveCopy),
             )
         }
+    }
+}
+
+internal fun resolveMuseumLoans(items: List<SearchableItem>): List<SearchableItem> {
+    val physicallyHeldUuids = items.asSequence()
+        .filterNot { it.source == ItemSourceId.MUSEUM || it.source == ItemSourceId.LOADOUTS }
+        .mapNotNull(SearchableItem::instanceUuid)
+        .toSet()
+    if (physicallyHeldUuids.isEmpty()) return items
+    return items.filterNot { item ->
+        item.source == ItemSourceId.MUSEUM && item.instanceUuid in physicallyHeldUuids
     }
 }
 

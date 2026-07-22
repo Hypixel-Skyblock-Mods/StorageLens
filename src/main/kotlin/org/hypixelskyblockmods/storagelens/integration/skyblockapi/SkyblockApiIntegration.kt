@@ -60,11 +60,14 @@ object SkyblockApiIntegration {
         SkyBlockAPI.eventBus.register<InventoryChangeEvent> { event ->
             val menu = event.screen.menu as? ChestMenu ?: return@register
             val title = event.title
+            val menuItems = event.inventory.map { slot ->
+                (if (slot === event.slot) event.item else slot.item).copy()
+            }
             val items = if (event.isInPlayerInventory) null else event.inventory
                 .filterNot { it.container is Inventory }
-                .map { it.item.copy() }
+                .map { slot -> (if (slot === event.slot) event.item else slot.item).copy() }
             Minecraft.getInstance().execute {
-                ContainerMenuObservation.observe(title, menu)
+                ContainerMenuObservation.observe(title, menu, menuItems)
                 items?.let { IslandChestRepository.onContainerChanged(menu.containerId, it) }
             }
         }
