@@ -33,6 +33,20 @@ object ContainerMenuObservation {
         observeValidated(title, menu, menuItems)
     }
 
+    /** Records a server-provided full menu snapshot even when no vanilla screen is displayed. */
+    fun observeContents(containerId: Int, menuItems: List<ItemStack>) {
+        val menu = backingMenu?.takeIf { it.containerId == containerId } ?: return
+        val title = backingTitle ?: return
+        observeValidated(title, menu, menuItems)
+    }
+
+    /** Records an individual server slot update against the retained backing menu. */
+    fun observeSlotChange(containerId: Int) {
+        val menu = backingMenu?.takeIf { it.containerId == containerId } ?: return
+        val title = backingTitle ?: return
+        observeValidated(title, menu, menu.items.map(ItemStack::copy))
+    }
+
     fun onClientTick() {
         val menu = backingMenu ?: return
         if (net.minecraft.client.Minecraft.getInstance().player?.containerMenu !== menu) {
