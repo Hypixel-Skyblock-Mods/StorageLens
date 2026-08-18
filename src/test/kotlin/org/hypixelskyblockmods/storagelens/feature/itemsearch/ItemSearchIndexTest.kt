@@ -82,9 +82,9 @@ class ItemSearchIndexTest {
 
         assertEquals(1, entry.totalAmount)
         assertEquals(100, entry.estimatedValue)
-        assertEquals(2, entry.locations.size)
+        assertEquals(1, entry.locations.size)
         assertEquals(1, index.query("", ItemSourceCategory.INVENTORY, ItemSearchOptions(), ItemSearchSort.AMOUNT, false).size)
-        assertEquals(1, index.query("", ItemSourceCategory.WARDROBE_EQUIPMENT, ItemSearchOptions(), ItemSearchSort.AMOUNT, false).size)
+        assertTrue(index.query("", ItemSourceCategory.WARDROBE_EQUIPMENT, ItemSearchOptions(), ItemSearchSort.AMOUNT, false).isEmpty())
     }
 
     @Test
@@ -142,7 +142,11 @@ class ItemSearchIndexTest {
         val entry = ItemSearchIndex.buildForTests(listOf(wardrobeMirror, identicalStoredHelmet, equipped)).all().single()
 
         assertEquals(2, entry.totalAmount)
-        assertEquals(3, entry.locations.size)
+        assertEquals(2, entry.locations.size)
+        assertEquals(
+            setOf("collection:Wardrobe:1:3:0", "inventory:NORMAL:true:39"),
+            entry.locations.mapTo(mutableSetOf()) { it.location.identity },
+        )
     }
 
     @Test

@@ -55,7 +55,7 @@ object ItemSourceRegistry {
                     .onFailure { failures[id] = it }
             }
         }
-        val resolvedItems = resolveMuseumLoans(resolveObservedLocations(items, authoritativeScopes)).toMutableList()
+        val resolvedItems = resolveReferencedItems(resolveObservedLocations(items, authoritativeScopes)).toMutableList()
         derivedSources.forEach { (id, registered) ->
             if (id !in enabled) return@forEach
             registered.forEach { source ->
@@ -148,7 +148,7 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
 
         private fun build(items: List<SearchableItem>, allowEmptyStacks: Boolean): ItemSearchIndex {
             val buckets = linkedMapOf<ItemFingerprint, MutableList<MutableEntry>>()
-            resolveMuseumLoans(resolveObservedLocations(items))
+            resolveReferencedItems(resolveObservedLocations(items))
                 .filterNot { (!allowEmptyStacks && it.stack.isEmpty) || it.amount <= 0 }
                 .forEach { item ->
                 val bucket = buckets.getOrPut(item.fingerprint) { mutableListOf() }
@@ -194,6 +194,25 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
                 locations.map(SearchableItem::defensiveCopy),
             )
         }
+    }
+}
+
+private fun resolveReferencedItems(items: List<SearchableItem>): List<SearchableItem> =
+    resolveMuseumLoans(resolveEquippedWardrobeMirrors(items))
+
+internal fun resolveEquippedWardrobeMirrors(items: List<SearchableItem>): List<SearchableItem> {
+    val equippedArmor = items.filter { item ->
+        val location = item.location as? ItemLocation.Inventory
+        item.source == ItemSourceId.EQUIPPED && location?.equipped == true && location.realm == InventoryRealm.NORMAL
+    }
+    if (equippedArmor.isEmpty()) return items
+
+    val equippedUuids = equippedArmor.mapNotNullTo(hashSetOf(), SearchableItem::instanceUuid)
+    val equippedOwnership = equippedArmor.mapNotNullTo(hashSetOf(), SearchableItem::ownershipIdentity)
+    return items.filterNot { item ->
+        item.source == ItemSourceId.WARDROBE &&
+            (item.instanceUuid?.let(equippedUuids::contains) == true ||
+                item.ownershipIdentity?.let(equippedOwnership::contains) == true)
     }
 }
 
