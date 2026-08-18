@@ -211,12 +211,6 @@ data class ItemSearchEntry(
     val locations: List<SearchableItem>,
 ) {
     val name: String get() = locations.firstOrNull()?.searchableName ?: displayStack.hoverName.string
-    val oldestUpdateEpochMillis: Long? get() = locations.mapNotNull(SearchableItem::updatedAtEpochMillis).minOrNull()
-    val hasUnknownAge: Boolean get() = locations.any { it.updatedAtEpochMillis == null && it.origin != ItemDataOrigin.LIVE_MENU && it.origin != ItemDataOrigin.LIVE_PLAYER }
-    fun isStale(now: Long, staleAfterMillis: Long): Boolean = locations.any {
-        val updated = it.updatedAtEpochMillis ?: return@any false
-        it.origin != ItemDataOrigin.LIVE_MENU && it.origin != ItemDataOrigin.LIVE_PLAYER && now - updated > staleAfterMillis
-    }
 
     internal fun locationsByDescendingAmount(): List<SearchableItem> = locations.sortedWith(
         compareByDescending<SearchableItem> { it.amount }

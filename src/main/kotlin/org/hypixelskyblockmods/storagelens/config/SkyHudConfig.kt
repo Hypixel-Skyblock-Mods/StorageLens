@@ -108,12 +108,6 @@ class ItemSearchConfig {
     var matchLocations: Boolean = false
 
     @field:Expose
-    @field:ConfigOption(name = "Stale Warnings", desc = "Mark cached observations older than 24 hours.")
-    @field:ConfigEditorBoolean
-    @JvmField
-    var staleWarnings: Boolean = true
-
-    @field:Expose
     @field:ConfigOption(name = "Warp to Island", desc = "Allow island chest results to run /warp island before highlighting. No walking or chest opening is performed.")
     @field:ConfigEditorBoolean
     @JvmField

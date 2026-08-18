@@ -244,9 +244,6 @@ class ItemSearchScreen(
             val stack = entry.displayStack
             graphics.item(stack, slotX + 3, slotY + 3)
             graphics.itemDecorations(font, stack, slotX + 3, slotY + 3, itemGridAmountLabel(entry.totalAmount))
-            if (config.staleWarnings && entry.isStale(System.currentTimeMillis(), 86_400_000L)) {
-                graphics.text(font, "!", slotX + 15, slotY + 2, 0xFFFFB84D.toInt(), false)
-            }
             if (hovered) {
                 val tooltip = getTooltipFromItem(minecraft, stack).toMutableList()
                 tooltip += Component.empty()

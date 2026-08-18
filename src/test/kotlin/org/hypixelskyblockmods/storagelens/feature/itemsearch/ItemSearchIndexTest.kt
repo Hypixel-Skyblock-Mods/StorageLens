@@ -4,7 +4,6 @@ import java.util.UUID
 import net.minecraft.world.item.ItemStack
 import org.hypixelskyblockmods.storagelens.feature.storage.StoragePageKey
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -367,30 +366,6 @@ class ItemSearchIndexTest {
 
         assertEquals(listOf("High", "Unknown", "Low"), index.query("", ItemSourceCategory.ALL, ItemSearchOptions(), ItemSearchSort.AMOUNT, false).map { it.name })
         assertEquals(listOf("High", "Low", "Unknown"), index.query("", ItemSourceCategory.ALL, ItemSearchOptions(), ItemSearchSort.VALUE, false).map { it.name })
-    }
-
-    @Test
-    fun `staleness ignores live data and marks old cached data`() {
-        val now = 2_000_000_000L
-        val old = item(
-            ItemStack.EMPTY,
-            1,
-            fingerprint("old"),
-            ItemLocation.Generic("Old"),
-            origin = ItemDataOrigin.LOCAL_OBSERVATION,
-            updated = now - 86_400_001L,
-        )
-        val live = item(
-            ItemStack.EMPTY,
-            1,
-            fingerprint("live"),
-            ItemLocation.Generic("Live"),
-            origin = ItemDataOrigin.LIVE_MENU,
-            updated = now - 86_400_001L,
-        )
-
-        assertTrue(ItemSearchIndex.buildForTests(listOf(old)).all().single().isStale(now, 86_400_000L))
-        assertFalse(ItemSearchIndex.buildForTests(listOf(live)).all().single().isStale(now, 86_400_000L))
     }
 
     @Test
