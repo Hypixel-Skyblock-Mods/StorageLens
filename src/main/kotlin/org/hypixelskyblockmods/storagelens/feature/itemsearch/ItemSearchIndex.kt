@@ -181,7 +181,8 @@ class ItemSearchIndex private constructor(private val entries: List<ItemSearchEn
         fun freeze(): ItemSearchEntry {
             val countedOwnership = mutableSetOf<String>()
             val ownedItems = locations.filter { item ->
-                item.contributesToTotals && (item.ownershipIdentity?.let(countedOwnership::add) ?: true)
+                val ownershipIdentity = item.instanceUuid?.let { "item-instance:$it" } ?: item.ownershipIdentity
+                item.contributesToTotals && (ownershipIdentity?.let(countedOwnership::add) ?: true)
             }
             val allValuesKnown = ownedItems.all { it.estimatedValue != null }
             return ItemSearchEntry(

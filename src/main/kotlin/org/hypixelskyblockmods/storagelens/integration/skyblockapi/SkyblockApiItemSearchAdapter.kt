@@ -203,6 +203,7 @@ object SkyblockApiItemSearchAdapter {
                     ItemLocation.Collection("Equipment", page, slot.id, index),
                     ItemNavigationAction.Collection(org.hypixelskyblockmods.storagelens.feature.itemsearch.CollectionType.EQUIPMENT, page, slot.id, index),
                     ItemDataOrigin.SKYBLOCK_API_PROFILE,
+                    contributesToTotals = false,
                 )
             }
         }

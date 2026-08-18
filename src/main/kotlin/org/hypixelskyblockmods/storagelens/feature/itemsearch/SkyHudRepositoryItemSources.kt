@@ -77,6 +77,7 @@ object SkyHudRepositoryItemSources {
                 ItemNavigationAction.Collection(CollectionType.EQUIPMENT, set.page, set.id, index),
                 ItemDataOrigin.LOCAL_OBSERVATION,
                 set.updatedAtEpochMillis,
+                contributesToTotals = false,
             )
         }
     }

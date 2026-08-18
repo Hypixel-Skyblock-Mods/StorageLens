@@ -110,6 +110,42 @@ class ItemSearchIndexTest {
     }
 
     @Test
+    fun `equipped armor consumes one wardrobe mirror with the same instance uuid`() {
+        val fingerprint = fingerprint("iron_helmet")
+        val equippedUuid = UUID.randomUUID()
+        val wardrobeMirror = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Collection("Wardrobe", 1, 2, 0),
+            source = ItemSourceId.WARDROBE,
+            instanceUuid = equippedUuid,
+        )
+        val identicalStoredHelmet = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Collection("Wardrobe", 1, 3, 0),
+            source = ItemSourceId.WARDROBE,
+            instanceUuid = UUID.randomUUID(),
+        )
+        val equipped = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Inventory(InventoryRealm.NORMAL, 39, equipped = true),
+            source = ItemSourceId.EQUIPPED,
+            ownershipIdentity = "equipped-armor:0",
+            instanceUuid = equippedUuid,
+        )
+
+        val entry = ItemSearchIndex.buildForTests(listOf(wardrobeMirror, identicalStoredHelmet, equipped)).all().single()
+
+        assertEquals(2, entry.totalAmount)
+        assertEquals(3, entry.locations.size)
+    }
+
+    @Test
     fun `loadout references do not increase owned amount or value`() {
         val fingerprint = fingerprint("warden_helmet")
         val wardrobe = item(
@@ -131,6 +167,34 @@ class ItemSearchIndexTest {
         )
 
         val entry = ItemSearchIndex.buildForTests(listOf(wardrobe, loadout)).all().single()
+
+        assertEquals(1, entry.totalAmount)
+        assertEquals(100, entry.estimatedValue)
+        assertEquals(2, entry.locations.size)
+    }
+
+    @Test
+    fun `equipment wardrobe references do not increase owned amount or value`() {
+        val fingerprint = fingerprint("molten_necklace")
+        val equipped = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Generic("Equipped necklace"),
+            source = ItemSourceId.EQUIPPED,
+            value = 100,
+        )
+        val equipmentSet = item(
+            ItemStack.EMPTY,
+            1,
+            fingerprint,
+            ItemLocation.Collection("Equipment", 1, 2, 0),
+            source = ItemSourceId.EQUIPMENT_WARDROBE,
+            value = 100,
+            contributesToTotals = false,
+        )
+
+        val entry = ItemSearchIndex.buildForTests(listOf(equipped, equipmentSet)).all().single()
 
         assertEquals(1, entry.totalAmount)
         assertEquals(100, entry.estimatedValue)

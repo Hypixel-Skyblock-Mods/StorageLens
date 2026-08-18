@@ -53,7 +53,7 @@ object SkyblockApiIntegration {
             val title = event.title
             val items = event.containerItems.map(net.minecraft.world.item.ItemStack::copy)
             Minecraft.getInstance().execute {
-                ContainerMenuObservation.observe(title, menu)
+                ContainerMenuObservation.observe(title, menu, items)
                 IslandChestRepository.initializeContainer(menu.containerId, items)
             }
         }
