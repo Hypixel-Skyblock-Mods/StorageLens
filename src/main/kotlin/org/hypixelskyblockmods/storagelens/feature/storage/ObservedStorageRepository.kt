@@ -9,6 +9,7 @@ import org.hypixelskyblockmods.storagelens.feature.itemsearch.ItemDataOrigin
 import org.hypixelskyblockmods.storagelens.feature.itemsearch.SkyBlockProfileStore
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyBlockProfileIdentity
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyblockApiStorageAdapter
+import org.hypixelskyblockmods.storagelens.util.BackgroundSave
 import org.hypixelskyblockmods.storagelens.util.ItemStackSerialization
 import org.slf4j.LoggerFactory
 
@@ -41,10 +42,10 @@ object ObservedStorageRepository {
     private val logger = LoggerFactory.getLogger("StorageLens Storage Observation")
     private val gson = GsonBuilder().setPrettyPrinting().create()
     private val pages = sortedMapOf<StoragePageKey, ObservedStoragePage>()
+    private val persistence = BackgroundSave()
 
     private var loadedProfile: ProfileKey? = null
     private var activeIdentity: SkyBlockProfileIdentity? = null
-    private var lastSavedJson: String? = null
     private var saveAfterEpochMillis: Long? = null
     private var livePageKey: StoragePageKey? = null
     private var liveMenu: ChestMenu? = null
@@ -88,39 +89,41 @@ object ObservedStorageRepository {
             captureLivePage()
             clearLiveBacking()
         }
-        saveAfterEpochMillis?.let { if (System.currentTimeMillis() >= it) saveNow() }
+        val now = System.currentTimeMillis()
+        saveAfterEpochMillis?.let { if (now >= it) saveNow() }
+        if (saveAfterEpochMillis == null && persistence.needsSave) saveAfterEpochMillis = now + SAVE_DEBOUNCE_MILLIS
     }
 
     fun onContainerClosed() {
         captureLivePage()
         clearLiveBacking()
         if (activeIdentity == null) pages.clear()
-        saveNow()
     }
 
     fun resetSession() {
         captureLivePage()
         saveNow()
+        persistence.reset()
         pages.clear()
         livePageKey = null
         liveMenu = null
         loadedProfile = null
         activeIdentity = null
-        lastSavedJson = null
         saveAfterEpochMillis = null
     }
 
     fun flush() {
         captureLivePage()
         saveNow()
+        persistence.awaitIdle()
     }
 
     fun clearCurrentProfile() {
         val profile = SkyblockApiStorageAdapter.currentProfile() ?: return
+        persistence.reset()
         pages.clear()
         loadedProfile = profile.toProfileKey()
         activeIdentity = profile
-        lastSavedJson = null
         saveAfterEpochMillis = null
         SkyBlockProfileStore.clear(CACHE_NAME, profile)
         if (liveMenu?.let(::isCurrentMenu) == true) captureLivePage()
@@ -139,12 +142,12 @@ object ObservedStorageRepository {
         val previousLiveMenu = liveMenu
         captureLivePage()
         saveNow()
+        persistence.reset()
         pages.clear()
         livePageKey = null
         liveMenu = null
         loadedProfile = profile
         activeIdentity = identity
-        lastSavedJson = null
         saveAfterEpochMillis = null
         if (identity != null) load(identity)
         if (carryUnknownLivePage && previousLiveKey != null && previousLiveMenu != null && isCurrentMenu(previousLiveMenu)) {
@@ -155,8 +158,7 @@ object ObservedStorageRepository {
     }
 
     private fun load(profile: SkyBlockProfileIdentity) {
-        lastSavedJson = SkyBlockProfileStore.read(CACHE_NAME, profile)
-        val json = lastSavedJson ?: return
+        val json = SkyBlockProfileStore.read(CACHE_NAME, profile) ?: return
         runCatching {
             val saved = gson.fromJson(json, SavedStoragePages::class.java)
             if (saved.schemaVersion != 1) return@runCatching
@@ -189,17 +191,25 @@ object ObservedStorageRepository {
 
     private fun capturePage(key: StoragePageKey, rowCount: Int, menuItems: List<ItemStack>) {
         val now = System.currentTimeMillis()
+        val previous = pages[key]
+        val refreshTimestamp = previous?.updatedAtEpochMillis?.let { now - it >= TIMESTAMP_REFRESH_MILLIS } != false
+        val slots = storagePageSlotRange(rowCount)
+        if (previous != null && previous.items.size == slots.count() && !refreshTimestamp &&
+            slots.withIndex().all { (index, slot) ->
+                menuItems.getOrNull(slot)?.let { ItemStack.matches(previous.items[index], it) } == true
+            }
+        ) return
         val observed = ObservedStoragePage(
             key = key,
             items = storagePageItems(menuItems, rowCount),
             updatedAtEpochMillis = now,
             origin = ItemDataOrigin.LOCAL_OBSERVATION,
         )
-        val previous = pages[key]
-        val refreshTimestamp = previous?.updatedAtEpochMillis?.let { now - it >= TIMESTAMP_REFRESH_MILLIS } != false
-        if (pagesMatch(previous, observed) && !refreshTimestamp) return
         pages[key] = observed
-        if (activeIdentity != null) saveAfterEpochMillis = now + SAVE_DEBOUNCE_MILLIS
+        if (activeIdentity != null) {
+            persistence.markDirty()
+            saveAfterEpochMillis = now + SAVE_DEBOUNCE_MILLIS
+        }
     }
 
     private fun clearLiveBacking() {
@@ -210,27 +220,30 @@ object ObservedStorageRepository {
     private fun saveNow() {
         saveAfterEpochMillis = null
         val profile = activeIdentity ?: return
-        val saved = SavedStoragePages(pages = pages.values.map { page ->
-            SavedPage(
-                type = page.key.type.name,
-                number = page.key.number,
-                rows = page.items.size / 9,
-                updatedAtEpochMillis = page.updatedAtEpochMillis,
-                items = page.items.mapIndexedNotNull { index, stack ->
-                    stack.takeUnless(ItemStack::isEmpty)
-                        ?.let(ItemStackSerialization::encode)
-                        ?.takeIf(String::isNotBlank)
-                        ?.let { SavedItem(index, it) }
-                }.toMutableList(),
-            )
-        }.toMutableList())
-        val json = gson.toJson(saved)
-        if (json == lastSavedJson) return
-        if (SkyBlockProfileStore.write(CACHE_NAME, profile, json)) lastSavedJson = json
+        persistence.submit {
+            // Capture owned, immutable observations and registry access before leaving the game thread.
+            val snapshot = pages.values.toList()
+            val ops = ItemStackSerialization.registryOps()
+            val write: () -> Boolean = {
+                val saved = SavedStoragePages(pages = snapshot.map { page ->
+                    SavedPage(
+                        type = page.key.type.name,
+                        number = page.key.number,
+                        rows = page.items.size / 9,
+                        updatedAtEpochMillis = page.updatedAtEpochMillis,
+                        items = page.items.mapIndexedNotNull { index, stack ->
+                            stack.takeUnless(ItemStack::isEmpty)
+                                ?.let { ItemStackSerialization.encode(it, ops) }
+                                ?.takeIf(String::isNotBlank)
+                                ?.let { SavedItem(index, it) }
+                        }.toMutableList(),
+                    )
+                }.toMutableList())
+                SkyBlockProfileStore.write(CACHE_NAME, profile, gson.toJson(saved))
+            }
+            write
+        }
     }
-
-    private fun pagesMatch(first: ObservedStoragePage?, second: ObservedStoragePage): Boolean =
-        first != null && ItemStackSerialization.stacksMatch(first.items, second.items)
 
     private fun isCurrentMenu(menu: ChestMenu): Boolean = Minecraft.getInstance().player?.containerMenu === menu
 

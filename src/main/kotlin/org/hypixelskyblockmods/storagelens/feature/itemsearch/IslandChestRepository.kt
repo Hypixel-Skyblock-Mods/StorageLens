@@ -12,6 +12,7 @@ import org.hypixelskyblockmods.storagelens.config.SkyHudConfigManager
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyBlockProfileIdentity
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyblockApiItemSearchAdapter
 import org.hypixelskyblockmods.storagelens.integration.skyblockapi.SkyblockApiStorageAdapter
+import org.hypixelskyblockmods.storagelens.util.BackgroundSave
 import org.hypixelskyblockmods.storagelens.util.ItemStackSerialization
 import org.slf4j.LoggerFactory
 
@@ -50,10 +51,10 @@ object IslandChestRepository {
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
     private val chests = linkedMapOf<String, ChestSnapshot>()
+    private val persistence = BackgroundSave()
     private var loaded = false
     private var loadedProfile: ProfileKey? = null
     private var activeIdentity: SkyBlockProfileIdentity? = null
-    private var lastSavedJson: String? = null
     private var saveAfterEpochMillis: Long? = null
     private var tick = 0L
     private var pendingOpen: PendingOpen? = null
@@ -89,6 +90,7 @@ object IslandChestRepository {
             }
         }
         saveAfterEpochMillis?.let { if (now >= it) saveNow() }
+        if (saveAfterEpochMillis == null && persistence.needsSave) saveAfterEpochMillis = now + SAVE_DEBOUNCE_MILLIS
     }
 
     fun observeChestRightClick(positions: List<BlockPos>) {
@@ -114,7 +116,7 @@ object IslandChestRepository {
     fun onScreenOpened(screen: Screen) {
         val container = screen as? AbstractContainerScreen<*> ?: return
         val menu = container.menu as? ChestMenu ?: return
-        initializeContainer(menu.containerId, menu.items.take(menu.rowCount * 9).map(ItemStack::copy))
+        initializeContainer(menu.containerId, menu.items.take(menu.rowCount * 9))
     }
 
     fun onContainerChanged(containerId: Int, items: List<ItemStack>) {
@@ -131,7 +133,6 @@ object IslandChestRepository {
         }
         activeOpen = null
         pendingOpen = null
-        saveNow()
     }
 
     fun onBlockChanged(pos: BlockPos, remainsChest: Boolean) {
@@ -179,21 +180,21 @@ object IslandChestRepository {
 
     fun clearCurrentProfile() {
         val profile = SkyblockApiStorageAdapter.currentProfile() ?: return
+        persistence.reset()
         chests.clear()
         activeOpen = null
         pendingOpen = null
         transientUnknownKey = null
-        lastSavedJson = null
         saveAfterEpochMillis = null
         SkyBlockProfileStore.clear("island-chests", profile)
     }
 
     fun resetSession() {
         saveNow()
+        persistence.reset()
         loaded = false
         loadedProfile = null
         activeIdentity = null
-        lastSavedJson = null
         saveAfterEpochMillis = null
         chests.clear()
         pendingOpen = null
@@ -203,7 +204,10 @@ object IslandChestRepository {
         waitingForIslandHighlight = null
     }
 
-    fun flush() = saveNow()
+    fun flush() {
+        saveNow()
+        persistence.awaitIdle()
+    }
 
     internal fun canonicalPositions(positions: List<BlockPos>): List<BlockPos> = IslandChestGeometry.canonical(positions)
 
@@ -237,12 +241,14 @@ object IslandChestRepository {
         val identity = SkyblockApiStorageAdapter.currentProfile()
         val key = identity?.let { ProfileKey(it.accountUuid, it.profileName) }
         if (loaded && loadedProfile == key) return
+        saveNow()
+        persistence.reset()
+        saveAfterEpochMillis = null
         loaded = true
         loadedProfile = key
         activeIdentity = identity
         chests.clear()
-        lastSavedJson = identity?.let { SkyBlockProfileStore.read("island-chests", it) }
-        val json = lastSavedJson ?: return
+        val json = identity?.let { SkyBlockProfileStore.read("island-chests", it) } ?: return
         runCatching {
             gson.fromJson(json, SavedData::class.java).chests.forEach { saved ->
                 val keyForChest = chestKey(saved.positions.map { BlockPos(it.x, it.y, it.z) }) ?: return@forEach
@@ -258,9 +264,9 @@ object IslandChestRepository {
     }
 
     private fun capture(key: ChestKey, stacks: List<ItemStack>) {
-        val items = stacks.mapIndexedNotNull { slot, stack -> stack.takeUnless(ItemStack::isEmpty)?.copy()?.let { ObservedItem(slot, it) } }
         val previous = chests[key.identity]
-        if (previous != null && observedMatches(previous.items, items)) return
+        if (previous != null && observedMatches(previous.items, stacks)) return
+        val items = stacks.mapIndexedNotNull { slot, stack -> stack.takeUnless(ItemStack::isEmpty)?.copy()?.let { ObservedItem(slot, it) } }
         chests[key.identity] = ChestSnapshot(key, System.currentTimeMillis(), items)
         if (previous == null) logger.info("Remembered island chest ${key.identity} with ${items.size} occupied slots")
         scheduleSave()
@@ -273,26 +279,35 @@ object IslandChestRepository {
             onContainerClosed()
             return
         }
-        onContainerChanged(active.containerId, menu.items.take(menu.rowCount * 9).map(ItemStack::copy))
+        onContainerChanged(active.containerId, menu.items.take(menu.rowCount * 9))
     }
 
     private fun scheduleSave() {
-        if (activeIdentity != null) saveAfterEpochMillis = System.currentTimeMillis() + SAVE_DEBOUNCE_MILLIS
+        if (activeIdentity != null) {
+            persistence.markDirty()
+            saveAfterEpochMillis = System.currentTimeMillis() + SAVE_DEBOUNCE_MILLIS
+        }
     }
 
     private fun saveNow() {
         saveAfterEpochMillis = null
         val profile = activeIdentity ?: return
-        val saved = SavedData(chests = chests.values.map { chest ->
-            SavedChest(
-                chest.key.positions.map { SavedPosition(it.x, it.y, it.z) }.toMutableList(),
-                chest.updatedAtEpochMillis,
-                chest.items.map { SavedItem(it.slot, ItemStackSerialization.encode(it.stack)) }.toMutableList(),
-            )
-        }.toMutableList())
-        val json = gson.toJson(saved)
-        if (json == lastSavedJson) return
-        if (SkyBlockProfileStore.write("island-chests", profile, json)) lastSavedJson = json
+        persistence.submit {
+            // Repository snapshots own their stacks and are replaced, never mutated.
+            val snapshot = chests.values.toList()
+            val ops = ItemStackSerialization.registryOps()
+            val write: () -> Boolean = {
+                val saved = SavedData(chests = snapshot.map { chest ->
+                    SavedChest(
+                        chest.key.positions.map { SavedPosition(it.x, it.y, it.z) }.toMutableList(),
+                        chest.updatedAtEpochMillis,
+                        chest.items.map { SavedItem(it.slot, ItemStackSerialization.encode(it.stack, ops)) }.toMutableList(),
+                    )
+                }.toMutableList())
+                SkyBlockProfileStore.write("island-chests", profile, gson.toJson(saved))
+            }
+            write
+        }
     }
 
     private fun chestKey(positions: List<BlockPos>): ChestKey? {
@@ -300,9 +315,9 @@ object IslandChestRepository {
         return canonical.takeIf { it.size in 1..2 }?.let(::ChestKey)
     }
 
-    private fun observedMatches(first: List<ObservedItem>, second: List<ObservedItem>): Boolean =
-        first.size == second.size && first.zip(second).all { (left, right) ->
-            left.slot == right.slot && ItemStack.matches(left.stack, right.stack)
+    private fun observedMatches(first: List<ObservedItem>, stacks: List<ItemStack>): Boolean =
+        first.size == stacks.count { !it.isEmpty } && first.all { item ->
+            stacks.getOrNull(item.slot)?.let { ItemStack.matches(item.stack, it) } == true
         }
 }
 

@@ -18,9 +18,11 @@ object ItemStackSerialization {
     private val logger = LoggerFactory.getLogger("StorageLens Item Serialization")
     private const val maxItemBytes = 1_000_000L
 
-    fun encode(stack: ItemStack): String = runCatching {
+    fun encode(stack: ItemStack): String = if (stack.isEmpty) "" else encode(stack, registryOps())
+
+    internal fun encode(stack: ItemStack, ops: RegistryOps<Tag>): String = runCatching {
         if (stack.isEmpty) return ""
-        val tag = ItemStack.CODEC.encodeStart(registryOps(), stack.copy())
+        val tag = ItemStack.CODEC.encodeStart(ops, stack.copy())
             .resultOrPartial { error -> logger.warn("Could not encode item: $error") }
             .orElse(null) as? CompoundTag ?: return ""
         val root = CompoundTag()
@@ -52,7 +54,7 @@ object ItemStackSerialization {
     fun stacksMatch(first: List<ItemStack>, second: List<ItemStack>): Boolean =
         first.size == second.size && first.indices.all { ItemStack.matches(first[it], second[it]) }
 
-    private fun registryOps(): RegistryOps<Tag> {
+    internal fun registryOps(): RegistryOps<Tag> {
         val registries = runCatching { Minecraft.getInstance().connection?.registryAccess() }.getOrNull() ?: RegistryAccess.EMPTY
         return RegistryOps.create(NbtOps.INSTANCE, registries)
     }
