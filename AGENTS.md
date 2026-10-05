@@ -3,8 +3,8 @@
 StorageLens is a client-side Kotlin/Fabric mod project for Hypixel SkyBlock.
 The repository currently contains build and release infrastructure only; do not
 add mod implementation until the user defines its behavior. The project supports
-Minecraft 26.1.2 and 26.2 from shared sources plus version-specific compatibility
-code under `src/26.1.2` and `src/26.2` once implementation begins.
+Minecraft 26.1.2, 26.2 and 26.3 from shared sources plus version-specific compatibility
+code under `src/26.1.2`, `src/26.2` and `src/26.3` once implementation begins.
 
 ## Multi-version architecture
 

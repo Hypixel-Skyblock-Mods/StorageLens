@@ -8,6 +8,7 @@ import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
 import org.hypixelskyblockmods.storagelens.platform.ScreenCompat
+import org.hypixelskyblockmods.storagelens.platform.InputCompat
 
 object SkyHudConfigManager {
     private lateinit var managed: ManagedConfig<SkyHudConfig>
@@ -17,7 +18,10 @@ object SkyHudConfigManager {
 
     fun initialize() {
         val file = FabricLoader.getInstance().configDir.resolve("storagelens.json").toFile()
+        val existing = file.exists()
         managed = ManagedConfig.create(file, SkyHudConfig::class.java)
+        val search = config.itemSearch
+        search.keybind = InputCompat.loadCode(search.keybind, search.keybindName, existing)
         save()
     }
 
@@ -33,7 +37,10 @@ object SkyHudConfigManager {
     }
 
     fun save() {
-        if (::managed.isInitialized) managed.saveToFile()
+        if (::managed.isInitialized) {
+            config.itemSearch.keybindName = InputCompat.fromCode(config.itemSearch.keybind).name
+            managed.saveToFile()
+        }
     }
 
     fun open() {

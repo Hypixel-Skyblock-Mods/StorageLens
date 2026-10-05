@@ -63,6 +63,7 @@ individual source toggles, and profile-scoped clear actions.
 
 - Minecraft 26.1.2 + Fabric
 - Minecraft 26.2 + Fabric
+- Minecraft 26.3 + Fabric
 
 StorageLens requires Fabric Loader 0.19.3 or newer, Fabric API, Fabric Language
 Kotlin, and Java 25. MoulConfig and
@@ -102,3 +103,5 @@ assets, and implementation are independent. It does not depend on SkyOcean.
 SkyblockAPI is distributed under the MIT License. Its complete license notice
 is packaged in every StorageLens JAR at
 `META-INF/licenses/skyblock-api/LICENSE.txt`.
+
+Minecraft 26.3 builds bundle the official MoulConfig source port; see [THIRD_PARTY.md](THIRD_PARTY.md) for the pinned revision and JDK 8/25 build setup.

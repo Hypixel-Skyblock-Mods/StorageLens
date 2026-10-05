@@ -1,0 +1,87 @@
+import java.security.MessageDigest
+import java.util.zip.ZipInputStream
+
+// Build the official, unreleased 26.3 port from an immutable source revision.
+// Never replace it with a 26.2 binary: its input backend is different.
+abstract class PrepareMoulConfig263 extends DefaultTask {
+    @Input abstract Property<String> getRevision()
+    @Input abstract Property<String> getArchiveSha256()
+    @OutputFile abstract RegularFileProperty getStamp()
+    @Internal abstract DirectoryProperty getSourceDirectory()
+
+    @TaskAction void prepare() {
+        def connection = URI.create("https://codeload.github.com/NotEnoughUpdates/MoulConfig/zip/${revision.get()}").toURL().openConnection()
+        connection.setRequestProperty('User-Agent', 'Hypixel-Skyblock-Mods-MoulConfig-source-build/1.0')
+        connection.connectTimeout = 30000
+        connection.readTimeout = 60000
+        byte[] archive = connection.inputStream.withCloseable { it.readAllBytes() }
+        def actual = HexFormat.of().formatHex(MessageDigest.getInstance('SHA-256').digest(archive))
+        if (actual != archiveSha256.get()) throw new GradleException('MoulConfig source archive checksum mismatch')
+        def root = sourceDirectory.get().asFile.toPath()
+        java.nio.file.Files.createDirectories(root)
+        new ZipInputStream(new ByteArrayInputStream(archive)).withCloseable { zip ->
+            def entry
+            while ((entry = zip.nextEntry) != null) {
+                def relative = entry.name.substring(entry.name.indexOf('/') + 1)
+                if (!relative || relative.startsWith('.github/') || relative.startsWith('.git/')) continue
+                def destination = root.resolve(relative).normalize()
+                if (!destination.startsWith(root)) throw new GradleException('Invalid source archive path')
+                if (entry.directory) java.nio.file.Files.createDirectories(destination)
+                else {
+                    java.nio.file.Files.createDirectories(destination.parent)
+                    java.nio.file.Files.copy(zip, destination, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                }
+            }
+        }
+        def settings = root.resolve('settings.gradle.kts').toFile()
+        def text = settings.getText('UTF-8').replace('include("legacy")', '// Legacy is not needed for the 26.3 dependency.')
+        int first = text.indexOf('listOf(')
+        int last = text.indexOf(').forEach', first)
+        settings.setText(text.substring(0, first) + 'listOf("26.3"' + text.substring(last), 'UTF-8')
+        root.resolve('modern/26.3/build.gradle.kts').toFile().append('\ntasks.withType<Jar>().configureEach { duplicatesStrategy = DuplicatesStrategy.EXCLUDE }\n', 'UTF-8')
+        // SDL keyboard codes overlap mouse buttons. Encode mouse bindings in
+        // a separate negative range only in the common library bundled for26.3.
+        def editor = root.resolve('common/src/main/java/io/github/notenoughupdates/moulconfig/gui/editors/GuiOptionEditorKeybind.java').toFile()
+        editor.setText(editor.getText('UTF-8').replace('option.set(mouseButton);', 'option.set(-2 - mouseButton);'), 'UTF-8')
+        def keyNames = root.resolve('modern/templates/java/io/github/notenoughupdates/moulconfig/platform/ModernKeybindHelper.java').toFile()
+        keyNames.setText(keyNames.getText('UTF-8').replace('} else if (keyCode >= 0 && keyCode <= 9) {', '''}
+        #if MC >= 260300
+        else if (keyCode <= -2) {
+            return StructuredText.of("Button " + (-2 - keyCode));
+        }
+        #else
+        else if (keyCode >= 0 && keyCode <= 9) {''').replace('} else {', '''}
+        #endif
+        else {'''), 'UTF-8')
+        root.resolve('gradle.properties').toFile().append('\norg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME\n', 'UTF-8')
+        root.resolve('build-src/src/main/kotlin/Version.kt').toFile().setText("""object Version {
+    val tag: String? = "4.7.2+mc26.3.${revision.get().take(12)}"
+    val hash = "${revision.get()}"
+    val shortHash = hash.take(12)
+    val isSnapshot = false
+}
+""", 'UTF-8')
+        root.resolve('gradlew').toFile().setExecutable(true)
+        stamp.get().asFile.setText(revision.get() + '\nbootstrap-3-java8-unique-resources-keybinds\n', 'UTF-8')
+    }
+}
+
+def revision = '4eaeb73cdaebb083d1d56d310fe1851ded1b7828'
+def sourceDirectory = layout.buildDirectory.dir('dependencies/moulconfig-26.3')
+def stamp = sourceDirectory.map { it.file('.prepared') }
+def jar = sourceDirectory.map { it.file("modern/26.3/build/libs/modern-26.3-4.7.2+mc26.3.${revision.take(12)}-dev.jar") }
+def prepare = tasks.register('prepareMoulConfig263', PrepareMoulConfig263) {
+    it.revision.set(revision)
+    archiveSha256.set('4b26888b24d5f88223b24a688a67cc39455cacf435ba480e23a9ff35af04523e')
+    it.sourceDirectory.set(sourceDirectory)
+    it.stamp.set(stamp)
+}
+def build = tasks.register('buildMoulConfig263', Exec) {
+    dependsOn(prepare)
+    inputs.file(stamp)
+    outputs.file(jar)
+    workingDir(sourceDirectory)
+    def windows = System.getProperty('os.name').toLowerCase().contains('windows')
+    commandLine(windows ? ['cmd', '/c', 'gradlew.bat', ':modern:modern-26.3:shadowJar', '--no-daemon', '--max-workers=2', '-Dorg.gradle.jvmargs=-Xmx2g'] : ['./gradlew', ':modern:modern-26.3:shadowJar', '--no-daemon', '--max-workers=2', '-Dorg.gradle.jvmargs=-Xmx2g'])
+}
+ext.moulConfig263 = files(jar).builtBy(build)

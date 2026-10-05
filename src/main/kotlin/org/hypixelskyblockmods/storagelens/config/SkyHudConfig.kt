@@ -83,6 +83,11 @@ class ItemSearchConfig {
     @JvmField
     var keybind: Int = InputConstants.KEY_I
 
+    // Stable across Minecraft's GLFW and SDL input backends.
+    @field:Expose
+    @JvmField
+    var keybindName: String = ""
+
     @field:Expose
     @field:ConfigOption(name = "Preserve Last Search", desc = "Keep the query and category when reopening Item Search during this client session.")
     @field:ConfigEditorBoolean

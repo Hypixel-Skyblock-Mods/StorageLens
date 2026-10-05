@@ -23,6 +23,8 @@ fun Properties.required(name: String): String =
     getProperty(name)?.takeIf(String::isNotBlank)
         ?: error("gradle/targets.properties is missing $name")
 
+apply(from = rootProject.file("gradle/moulconfig263.gradle"))
+
 val targetProperties = Properties().apply {
     rootProject.file("gradle/targets.properties").inputStream().use(::load)
 }
@@ -89,8 +91,8 @@ subprojects {
         add("implementation", "net.fabricmc:fabric-loader:0.19.3")
         add("implementation", "net.fabricmc.fabric-api:fabric-api:${target.fabricApi}")
         add("implementation", "net.fabricmc:fabric-language-kotlin:1.13.12+kotlin.2.4.0")
-        add("implementation", "org.notenoughupdates.moulconfig:${target.moulConfig}:4.7.2")
-        add("include", "org.notenoughupdates.moulconfig:${target.moulConfig}:4.7.2")
+        add("implementation", if (target.minecraft == "26.3") rootProject.extra["moulConfig263"]!! else "org.notenoughupdates.moulconfig:${target.moulConfig}:4.7.2")
+        add("include", if (target.minecraft == "26.3") project(":moulconfig263") else "org.notenoughupdates.moulconfig:${target.moulConfig}:4.7.2")
         add("implementation", "tech.thatgravyboat:skyblock-api:$skyblockApiVersion") {
             isTransitive = false
             capabilities {
@@ -144,6 +146,29 @@ subprojects {
         }
     }
 
+    val sourceSets = extensions.getByType<org.gradle.api.tasks.SourceSetContainer>()
+    val smoke = sourceSets.create("smoke") {
+        java.setSrcDirs(listOf(rootProject.file("src/smoke/java")))
+        resources.setSrcDirs(listOf(rootProject.file("src/smoke/resources")))
+        compileClasspath += sourceSets["main"].output + sourceSets["main"].compileClasspath
+        runtimeClasspath += sourceSets["main"].runtimeClasspath
+    }
+    extensions.configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {
+        mods {
+            register("storagelens") { sourceSet(sourceSets["main"]) }
+            register("storagelens_smoke") { sourceSet(smoke) }
+        }
+        runs {
+            register("smoke") {
+                client()
+                source(smoke)
+                vmArg("-Dstoragelens.smoke=true")
+                runDir("run/smoke/${target.minecraft}")
+                ideConfigGenerated(false)
+            }
+        }
+    }
+
     tasks.withType<KotlinCompile>().configureEach {
         compilerOptions.jvmTarget.set(JvmTarget.JVM_25)
     }
@@ -164,6 +189,7 @@ subprojects {
     }
 
     tasks.named<Jar>("jar") {
+        from(rootProject.file("THIRD_PARTY.md"))
         archiveBaseName.set("StorageLens")
         archiveVersion.set(project.version.toString())
     }

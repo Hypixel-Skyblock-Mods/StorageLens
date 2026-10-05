@@ -21,3 +21,4 @@ val targetNames = targetProperties.getProperty("targets")
     ?: error("gradle/targets.properties must declare at least one target")
 
 targetNames.forEach { include("versions:$it") }
+include("moulconfig263")

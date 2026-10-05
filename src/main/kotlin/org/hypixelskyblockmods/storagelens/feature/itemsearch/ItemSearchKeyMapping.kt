@@ -6,6 +6,7 @@ import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
 import net.minecraft.resources.Identifier
 import org.hypixelskyblockmods.storagelens.config.SkyHudConfigManager
+import org.hypixelskyblockmods.storagelens.platform.InputCompat
 
 object ItemSearchKeyMapping {
     private const val TRANSLATION_KEY = "key.storagelens.item_search"
@@ -19,7 +20,7 @@ object ItemSearchKeyMapping {
     fun initialize() {
         val category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("storagelens", "controls"))
         mapping = KeyMappingHelper.registerKeyMapping(
-            KeyMapping(TRANSLATION_KEY, InputConstants.Type.KEYSYM, DEFAULT_KEY, category),
+            KeyMapping(TRANSLATION_KEY, InputCompat.keyboardType, DEFAULT_KEY, category),
         )
     }
 
@@ -35,11 +36,11 @@ object ItemSearchKeyMapping {
 
         if (!synchronized) {
             when {
-                bound.type == InputConstants.Type.KEYSYM && bound.value != DEFAULT_KEY -> {
-                    config.keybind = bound.value
+                InputCompat.supports(bound) && bound.value != DEFAULT_KEY -> {
+                    config.keybind = InputCompat.toCode(bound)
                     SkyHudConfigManager.save()
                 }
-                bound.type == InputConstants.Type.KEYSYM && config.keybind != bound.value -> {
+                InputCompat.supports(bound) && config.keybind != InputCompat.toCode(bound) -> {
                     applyConfigKey(client, config.keybind)
                 }
             }
@@ -53,8 +54,8 @@ object ItemSearchKeyMapping {
         val mappingChanged = mappingValue != lastMappingValue
         when {
             mappingChanged -> {
-                if (bound.type == InputConstants.Type.KEYSYM) {
-                    config.keybind = bound.value
+                if (InputCompat.supports(bound)) {
+                    config.keybind = InputCompat.toCode(bound)
                     SkyHudConfigManager.save()
                 }
             }
@@ -65,7 +66,7 @@ object ItemSearchKeyMapping {
     }
 
     private fun applyConfigKey(client: Minecraft, key: Int) {
-        mapping.setKey(InputConstants.Type.KEYSYM.getOrCreate(key))
+        mapping.setKey(InputCompat.fromCode(key))
         KeyMapping.resetMapping()
         client.options.save()
     }

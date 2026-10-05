@@ -1,9 +1,9 @@
 package org.hypixelskyblockmods.storagelens.gui
 
 import com.mojang.blaze3d.systems.RenderSystem
-import com.mojang.blaze3d.textures.FilterMode
-import com.mojang.blaze3d.textures.GpuTexture
-import com.mojang.blaze3d.textures.GpuTextureView
+import org.hypixelskyblockmods.storagelens.platform.FilterMode
+import org.hypixelskyblockmods.storagelens.platform.GpuTexture
+import org.hypixelskyblockmods.storagelens.platform.GpuTextureView
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import org.hypixelskyblockmods.storagelens.platform.RenderTargetCompat
 
@@ -100,25 +100,16 @@ object SkyHudBackdrop {
         }
 
         close()
-        val device = RenderSystem.getDevice()
-        val texture = device.createTexture(
-            { "StorageLens backdrop snapshot" },
-            GpuTexture.USAGE_COPY_DST or GpuTexture.USAGE_TEXTURE_BINDING,
-            source.getFormat(),
-            source.getWidth(0),
-            source.getHeight(0),
-            1,
-            1,
-        )
+        val texture = RenderTargetCompat.createSnapshotTexture(source, "StorageLens backdrop snapshot")
         snapshot = texture
-        snapshotView = device.createTextureView(texture)
+        snapshotView = RenderSystem.getDevice().createTextureView(texture)
         return snapshotView
     }
 
     private fun restoreRegion(
         graphics: GuiGraphicsExtractor,
         view: GpuTextureView,
-        sampler: com.mojang.blaze3d.textures.GpuSampler,
+        sampler: org.hypixelskyblockmods.storagelens.platform.GpuSampler,
         x0: Int,
         y0: Int,
         x1: Int,

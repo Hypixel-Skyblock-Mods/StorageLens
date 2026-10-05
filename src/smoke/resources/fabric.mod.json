@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "storagelens_smoke",
+  "version": "1.0.0",
+  "name": "StorageLens development linkage checks",
+  "environment": "client",
+  "entrypoints": {
+    "preLaunch": [
+      "org.hypixelskyblockmods.storagelens.smoke.FabricSmoke"
+    ]
+  },
+  "depends": {
+    "storagelens": "*"
+  }
+}
