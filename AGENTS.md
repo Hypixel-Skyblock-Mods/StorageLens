@@ -48,14 +48,14 @@ code under `src/26.1.2` and `src/26.2` once implementation begins.
 - Releases are synchronized across all active Minecraft targets. Do not publish
   only a subset under a shared mod version; remove an unsupported target from
   the catalog before tagging if it can no longer be released.
-- Only pushed `v*` tags invoke `.github/workflows/release.yml`. The tag must
-  exactly equal `v<mod_version>`; normal pushes and pull requests do not build or
-  publish anything in GitHub Actions.
+- Pushed `v*` tags invoke `.github/workflows/release.yml`. A manual workflow
+  dispatch can retry an existing release tag. The selected tag must exactly
+  equal `v<mod_version>` in its checked-out source; normal branch pushes and
+  pull requests do not build or publish anything in GitHub Actions.
 - The `release` GitHub environment provides `MODRINTH_TOKEN` as a secret and
   `MODRINTH_PROJECT_ID` as a variable. Never commit either credential.
-- The release job runs on the repository-scoped self-hosted pool labeled
-  `self-hosted`, `Linux`, `X64`, `wicked-game-01`, and `storagelens`. Keep all
-  five labels on the job so it cannot land on an unrelated host runner.
+- The release job runs on GitHub-hosted Ubuntu 24.04 (`ubuntu-24.04`). It does
+  not depend on the retired self-hosted runner pool.
 - The workflow generates its target list with `./gradlew releaseManifest`,
   builds all targets, skips Modrinth versions that already exist, publishes each
   missing target, and creates or updates one GitHub Release with all production

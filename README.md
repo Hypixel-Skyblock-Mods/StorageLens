@@ -88,8 +88,10 @@ versions/mc26_2/build/libs/StorageLens-<mod_version>+mc26.2.jar
 ## Releases
 
 Pushing a tag that exactly matches `v<mod_version>` builds every configured
-target on the project-specific self-hosted runner pool, publishes one Modrinth
+target on GitHub-hosted Ubuntu runners, publishes one Modrinth
 version per Minecraft target, and creates one GitHub release with both JARs.
+The release workflow can also be run manually with an existing release tag to
+retry publication; Modrinth versions that already exist are skipped.
 
 StorageLens is behaviorally informed by
 [SkyOcean's item finder](https://github.com/meowdding/SkyOcean), but its UI,
