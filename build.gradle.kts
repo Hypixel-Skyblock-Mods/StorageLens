@@ -88,7 +88,7 @@ subprojects {
 
     dependencies {
         add("minecraft", "com.mojang:minecraft:${target.minecraft}")
-        add("implementation", "net.fabricmc:fabric-loader:0.19.3")
+        add("implementation", "net.fabricmc:fabric-loader:0.20.1")
         add("implementation", "net.fabricmc.fabric-api:fabric-api:${target.fabricApi}")
         add("implementation", "net.fabricmc:fabric-language-kotlin:1.13.12+kotlin.2.4.0")
         add("implementation", if (target.minecraft == "26.3") rootProject.extra["moulConfig263"]!! else "org.notenoughupdates.moulconfig:${target.moulConfig}:4.7.2")

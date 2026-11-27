@@ -61,13 +61,12 @@ individual source toggles, and profile-scoped clear actions.
 
 ## Supported versions
 
-- Minecraft 26.1.2 + Fabric
 - Minecraft 26.2 + Fabric
 - Minecraft 26.3 + Fabric
 
-StorageLens requires Fabric Loader 0.19.3 or newer, Fabric API, Fabric Language
+StorageLens requires Fabric Loader 0.20.1 or newer, Fabric API, Fabric Language
 Kotlin, and Java 25. MoulConfig and
-[SkyblockAPI](https://github.com/SkyblockAPI/SkyblockAPI) 4.2.10 are embedded in
+[SkyblockAPI](https://github.com/SkyblockAPI/SkyblockAPI) 4.3.3 are embedded in
 each JAR together with their required runtime libraries. Players do not need to
 install SkyblockAPI or Hypixel Mod API separately.
 
@@ -82,8 +81,8 @@ Build and test both supported targets:
 Production JARs are written to:
 
 ```text
-versions/mc26_1_2/build/libs/StorageLens-<mod_version>+mc26.1.2.jar
 versions/mc26_2/build/libs/StorageLens-<mod_version>+mc26.2.jar
+versions/mc26_3/build/libs/StorageLens-<mod_version>+mc26.3.jar
 ```
 
 ## Releases

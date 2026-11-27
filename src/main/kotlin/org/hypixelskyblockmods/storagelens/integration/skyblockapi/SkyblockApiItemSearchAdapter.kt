@@ -20,7 +20,6 @@ import tech.thatgravyboat.skyblockapi.api.datatype.getData
 import tech.thatgravyboat.skyblockapi.api.item.calculator.getItemValue
 import tech.thatgravyboat.skyblockapi.api.location.LocationAPI
 import tech.thatgravyboat.skyblockapi.api.location.SkyBlockIsland
-import tech.thatgravyboat.skyblockapi.api.profile.items.accessory.AccessoryBagAPI
 import tech.thatgravyboat.skyblockapi.api.profile.items.equipment.EquipmentAPI
 import tech.thatgravyboat.skyblockapi.api.profile.items.forge.ForgeAPI
 import tech.thatgravyboat.skyblockapi.api.profile.items.loadout.ArmorWardrobeAPI
@@ -29,6 +28,7 @@ import tech.thatgravyboat.skyblockapi.api.profile.items.museum.MuseumAPI
 import tech.thatgravyboat.skyblockapi.api.profile.items.sacks.SacksAPI
 import tech.thatgravyboat.skyblockapi.api.profile.items.storage.StorageAPI
 import tech.thatgravyboat.skyblockapi.api.profile.items.vault.VaultAPI
+import tech.thatgravyboat.skyblockapi.api.profile.maxwell.MaxwellAPI
 import tech.thatgravyboat.skyblockapi.api.remote.api.SkyBlockId
 import tech.thatgravyboat.skyblockapi.utils.extentions.cleanName
 import tech.thatgravyboat.skyblockapi.utils.extentions.getRawLore
@@ -210,27 +210,27 @@ object SkyblockApiItemSearchAdapter {
     }
 
     private fun accessoryBag(): List<SearchableItem> = profileSnapshot {
-        AccessoryBagAPI.getItems().mapNotNull { item ->
+        MaxwellAPI.accessories.mapNotNull { stack ->
             searchable(
-                item.item,
-                item.item.count.toLong(),
+                stack,
+                stack.count.toLong(),
                 ItemSourceId.ACCESSORY_BAG,
-                ItemLocation.Container("Accessory Bag", item.page, item.slot),
-                ItemNavigationAction.Command("ab ${item.page}"),
+                ItemLocation.Container("Accessory Bag"),
+                ItemNavigationAction.Command("ab"),
                 ItemDataOrigin.SKYBLOCK_API_PROFILE,
             )
         }
     }
 
     private fun sacks(): List<SearchableItem> = profileSnapshot {
-        SacksAPI.sackItems.mapNotNull { (id, amount) ->
+        SacksAPI.items.mapNotNull { (id, amount) ->
             if (amount <= 0) return@mapNotNull null
-            val stack = SkyBlockId.item(id).toItem()
+            val stack = id.toItem()
             searchable(
                 stack,
                 amount.toLong(),
                 ItemSourceId.SACKS,
-                ItemLocation.Generic("Sacks", "sacks:$id"),
+                ItemLocation.Generic("Sacks", "sacks:${id.skyblockId}"),
                 ItemNavigationAction.Command("sacks"),
                 ItemDataOrigin.SKYBLOCK_API_PROFILE,
             )
